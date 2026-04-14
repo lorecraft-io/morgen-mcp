@@ -36,7 +36,7 @@
   "homepage": "https://github.com/lorecraft-io/morgen-mcp#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",
-    "dotenv": "17.4.0"
+    "dotenv": "17.4.2"
   },
   "devDependencies": {
     "vitest": "4.1.2"
