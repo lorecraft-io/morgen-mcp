@@ -20,14 +20,29 @@ import {
 import {
   getAllAccountsWithCalendars,
   groupCalendarIdsByAccount,
+  inferAccountFromContext,
+  resolveCalendarByAccountName,
   resolveCalendarMeta,
   resolveDefaultCalendarMeta,
+  resolveSelfEmail,
 } from "./calendar-cache.js";
 import {
   EVENT_TOOLS,
+  EVENT_PRIVACY,
+  FREE_BUSY_STATUS,
+  VIRTUAL_ROOM_TYPES,
+  ACCOUNT_NAMES,
   SERIES_UPDATE_MODES,
   RSVP_RESPONSES,
 } from "./tools-events-schema.js";
+
+// Morgen's participationStatus uses past-tense forms; the MCP's user-facing
+// input accepts the bare verb. Map on the way out.
+const RSVP_STATUS_MAP = {
+  accept: "accepted",
+  decline: "declined",
+  tentative: "tentative",
+};
 
 export { EVENT_TOOLS };
 
@@ -163,13 +178,33 @@ async function handleCreateEvent(args = {}) {
   if (args.recurrence_rules !== undefined) {
     validateRecurrenceRules(args.recurrence_rules);
   }
+  if (args.privacy !== undefined) validateEnum(args.privacy, EVENT_PRIVACY, "privacy");
+  if (args.free_busy_status !== undefined) validateEnum(args.free_busy_status, FREE_BUSY_STATUS, "free_busy_status");
+  if (args.virtual_room !== undefined) validateEnum(args.virtual_room, VIRTUAL_ROOM_TYPES, "virtual_room");
+  if (args.account !== undefined) validateEnum(args.account, ACCOUNT_NAMES, "account");
 
+  // Calendar resolution precedence:
+  //   1. explicit calendar_id (caller knows exactly which calendar)
+  //   2. explicit account name override (caller says "parzvl" / "bloom")
+  //   3. smart routing inferred from title + description + participants
+  //      (catches obvious PARZVL / BLOOM signals, falls back to lorecraft)
+  //   4. default writable calendar (last resort)
   let calendarMeta;
   if (args.calendar_id) {
     validateId(args.calendar_id, "calendar_id");
     calendarMeta = await resolveCalendarMeta(args.calendar_id);
+  } else if (args.account) {
+    calendarMeta = await resolveCalendarByAccountName(args.account);
   } else {
-    calendarMeta = await resolveDefaultCalendarMeta();
+    const inferred = inferAccountFromContext({
+      title: args.title,
+      description: args.description,
+      participants: args.participants,
+    });
+    calendarMeta = await resolveCalendarByAccountName(inferred);
+    if (!calendarMeta) {
+      calendarMeta = await resolveDefaultCalendarMeta();
+    }
   }
 
   if (calendarMeta.readOnly) {
@@ -200,6 +235,15 @@ async function handleCreateEvent(args = {}) {
   if (args.recurrence_rules !== undefined) {
     body.recurrenceRules = args.recurrence_rules;
   }
+  if (args.privacy !== undefined) body.privacy = args.privacy;
+  if (args.free_busy_status !== undefined) body.freeBusyStatus = args.free_busy_status;
+  if (args.virtual_room !== undefined) {
+    body["morgen.so:requestVirtualRoom"] = args.virtual_room;
+  }
+  if (args.color_id !== undefined) body["google.com:colorId"] = args.color_id;
+  if (args.alerts !== undefined && typeof args.alerts === "object") {
+    body.alerts = args.alerts;
+  }
 
   const data = await morgenFetch("/v3/events/create", {
     method: "POST",
@@ -207,7 +251,7 @@ async function handleCreateEvent(args = {}) {
     points: 1,
   });
 
-  return { success: true, event: mapEvent(unwrapEvent(data)) };
+  return { success: true, event: mapEvent(unwrapEvent(data)), routedTo: calendarMeta.name };
 }
 
 async function handleUpdateEvent(args = {}) {
@@ -235,12 +279,11 @@ async function handleUpdateEvent(args = {}) {
     validateParticipantEmails(args.participants);
   }
   if (args.series_update_mode !== undefined) {
-    validateEnum(
-      args.series_update_mode,
-      SERIES_UPDATE_MODES,
-      "series_update_mode"
-    );
+    validateEnum(args.series_update_mode, SERIES_UPDATE_MODES, "series_update_mode");
   }
+  if (args.privacy !== undefined) validateEnum(args.privacy, EVENT_PRIVACY, "privacy");
+  if (args.free_busy_status !== undefined) validateEnum(args.free_busy_status, FREE_BUSY_STATUS, "free_busy_status");
+  if (args.virtual_room !== undefined) validateEnum(args.virtual_room, VIRTUAL_ROOM_TYPES, "virtual_room");
 
   const timeZone = args.timezone || DEFAULT_TIMEZONE;
   const body = {
@@ -265,6 +308,15 @@ async function handleUpdateEvent(args = {}) {
   if (args.location !== undefined) body.locations = toLocationsMap(args.location);
   if (args.participants !== undefined) {
     body.participants = toParticipantMap(args.participants);
+  }
+  if (args.privacy !== undefined) body.privacy = args.privacy;
+  if (args.free_busy_status !== undefined) body.freeBusyStatus = args.free_busy_status;
+  if (args.virtual_room !== undefined) {
+    body["morgen.so:requestVirtualRoom"] = args.virtual_room;
+  }
+  if (args.color_id !== undefined) body["google.com:colorId"] = args.color_id;
+  if (args.alerts !== undefined && typeof args.alerts === "object") {
+    body.alerts = args.alerts;
   }
 
   const params = new URLSearchParams();
@@ -321,20 +373,45 @@ async function handleDeleteEvent(args = {}) {
   };
 }
 
+// Morgen has NO dedicated RSVP endpoint. /v3/events/accept, /decline, and
+// /tentative do not exist. RSVP is done by PATCHing the event's participants
+// map via POST /v3/events/update, keying the update by the caller's own
+// email address and setting participationStatus to "accepted" / "declined" /
+// "tentative" (past-tense forms).
+//
+// The caller's own email comes from MORGEN_SELF_EMAIL env var, or is derived
+// from the calendar name if it looks like an email (most Google calendars
+// are named after the account email). See calendar-cache.js::resolveSelfEmail.
 async function handleRsvpEvent(args = {}) {
   const eventId = validateId(args.event_id, "event_id");
   validateId(args.calendar_id, "calendar_id");
   const calendarMeta = await resolveCalendarMeta(args.calendar_id);
   validateEnum(args.response, RSVP_RESPONSES, "response");
 
-  const path = `/v3/events/${args.response}`;
-  const data = await morgenFetch(path, {
-    method: "POST",
-    body: {
-      id: eventId,
-      accountId: calendarMeta.accountId,
-      calendarId: calendarMeta.id,
+  const selfEmailOverride = args.self_email;
+  const selfEmail =
+    selfEmailOverride && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(selfEmailOverride)
+      ? selfEmailOverride
+      : resolveSelfEmail(calendarMeta);
+
+  const participationStatus = RSVP_STATUS_MAP[args.response];
+
+  const body = {
+    id: eventId,
+    accountId: calendarMeta.accountId,
+    calendarId: calendarMeta.id,
+    participants: {
+      [selfEmail]: {
+        "@type": "Participant",
+        email: selfEmail,
+        participationStatus,
+      },
     },
+  };
+
+  const data = await morgenFetch("/v3/events/update", {
+    method: "POST",
+    body,
     points: 1,
   });
 
@@ -343,6 +420,8 @@ async function handleRsvpEvent(args = {}) {
     eventId,
     calendarId: calendarMeta.id,
     response: args.response,
+    participationStatus,
+    selfEmail,
     event: mapEvent(unwrapEvent(data)),
   };
 }

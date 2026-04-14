@@ -130,26 +130,38 @@ export function unwrapEvent(data) {
 
 // Morgen /v3/events/create requires LocalDateTime (no offset, no Z) plus a
 // separate `timeZone` field. Convert an ISO 8601 UTC instant to the wall-clock
-// time in the target IANA timezone using Intl.DateTimeFormat.
+// time in the target IANA timezone.
+//
+// Uses en-CA for the date (which emits YYYY-MM-DD) and en-GB for the time
+// (which emits HH:MM:SS with hour12:false and handles midnight cleanly).
+// Some older Intl runtimes emit "24:00:00" at midnight; if that happens we
+// bump the instant by 1 ms and re-query so the date rolls forward naturally.
 export function isoUtcToLocal(iso, tz) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) {
     throw new Error(`invalid ISO 8601 datetime: ${iso}`);
   }
-  const parts = new Intl.DateTimeFormat("en-US", {
+  const datePart = d.toLocaleDateString("en-CA", { timeZone: tz });
+  const timePart = d.toLocaleTimeString("en-GB", {
     timeZone: tz,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
+    hour12: false,
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
-    hour12: false,
-  }).formatToParts(d);
-  const get = (t) => parts.find((p) => p.type === t)?.value || "00";
-  let hour = get("hour");
-  if (hour === "24") hour = "00";
-  return `${get("year")}-${get("month")}-${get("day")}T${hour}:${get("minute")}:${get("second")}`;
+  });
+  if (timePart.startsWith("24:")) {
+    const bumped = new Date(d.getTime() + 1);
+    const bumpedDate = bumped.toLocaleDateString("en-CA", { timeZone: tz });
+    const bumpedTime = bumped.toLocaleTimeString("en-GB", {
+      timeZone: tz,
+      hour12: false,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+    return `${bumpedDate}T${bumpedTime}`;
+  }
+  return `${datePart}T${timePart}`;
 }
 
 // Build an ISO 8601 duration string (e.g. "PT15M", "PT1H30M", "PT2H")

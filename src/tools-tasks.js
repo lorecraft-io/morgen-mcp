@@ -10,6 +10,36 @@ const PRIORITY_MAX = 9;
 
 const MAX_TITLE_LENGTH = 500;
 const MAX_DESCRIPTION_LENGTH = 5000;
+const MAX_TAGS = 50;
+const MAX_TAG_LENGTH = 100;
+
+const DESCRIPTION_CONTENT_TYPES = ["text/plain", "text/html"];
+
+const ISO_DURATION_RE = /^P(?!$)(\d+Y)?(\d+M)?(\d+W)?(\d+D)?(T(?=\d)(\d+H)?(\d+M)?(\d+S)?)?$/;
+
+function validateIsoDuration(value, field = "estimated_duration") {
+  if (typeof value !== "string" || !ISO_DURATION_RE.test(value)) {
+    throw new Error(
+      `${field} must be an ISO 8601 duration string (e.g. 'PT30M', 'PT1H', 'PT2H30M')`
+    );
+  }
+  return value;
+}
+
+function validateTaskTags(value, field = "tags") {
+  if (!Array.isArray(value)) {
+    throw new Error(`${field} must be an array of strings`);
+  }
+  if (value.length > MAX_TAGS) {
+    throw new Error(`${field} exceeds maximum of ${MAX_TAGS} tags`);
+  }
+  for (const tag of value) {
+    if (typeof tag !== "string" || tag.length === 0 || tag.length > MAX_TAG_LENGTH) {
+      throw new Error(`${field} entries must be non-empty strings under ${MAX_TAG_LENGTH} chars`);
+    }
+  }
+  return value;
+}
 
 function validateTitle(value) {
   if (!value || typeof value !== "string") {
@@ -116,6 +146,24 @@ export const TASK_TOOLS = [
           description:
             "Optional Morgen task list ID. Defaults to the account's default list if omitted.",
         },
+        estimated_duration: {
+          type: "string",
+          description: "Optional ISO 8601 duration string (e.g. 'PT30M', 'PT1H', 'PT2H30M') — how long the task is expected to take. Used by Morgen's auto-scheduler.",
+        },
+        timezone: {
+          type: "string",
+          description: "Optional IANA timezone (e.g. 'America/New_York') that applies to the task's due time.",
+        },
+        tags: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional array of tag strings. Max 50 tags, 100 chars each.",
+        },
+        description_content_type: {
+          type: "string",
+          enum: DESCRIPTION_CONTENT_TYPES,
+          description: "Optional content type for the description field: 'text/plain' (default) or 'text/html'.",
+        },
       },
       required: ["title"],
       additionalProperties: false,
@@ -148,6 +196,24 @@ export const TASK_TOOLS = [
           minimum: PRIORITY_MIN,
           maximum: PRIORITY_MAX,
           description: "Integer 0-9 (1 = highest, 9 = lowest, 0 = undefined).",
+        },
+        estimated_duration: {
+          type: "string",
+          description: "ISO 8601 duration (e.g. 'PT30M').",
+        },
+        timezone: {
+          type: "string",
+          description: "IANA timezone for the due date.",
+        },
+        tags: {
+          type: "array",
+          items: { type: "string" },
+          description: "Replacement tag array.",
+        },
+        description_content_type: {
+          type: "string",
+          enum: DESCRIPTION_CONTENT_TYPES,
+          description: "'text/plain' or 'text/html'.",
         },
       },
       required: ["task_id"],
@@ -240,12 +306,27 @@ export const taskHandlers = {
     if (args.task_list_id !== undefined && args.task_list_id !== null) {
       taskListId = validateId(args.task_list_id, "task_list_id");
     }
+    if (args.estimated_duration !== undefined && args.estimated_duration !== null) {
+      validateIsoDuration(args.estimated_duration, "estimated_duration");
+    }
+    if (args.tags !== undefined && args.tags !== null) {
+      validateTaskTags(args.tags);
+    }
+    if (args.description_content_type !== undefined && args.description_content_type !== null) {
+      if (!DESCRIPTION_CONTENT_TYPES.includes(args.description_content_type)) {
+        throw new Error(`description_content_type must be one of: ${DESCRIPTION_CONTENT_TYPES.join(", ")}`);
+      }
+    }
 
     const body = { title };
     if (description !== undefined) body.description = description;
     if (args.due) body.due = args.due;
     if (args.priority !== undefined && args.priority !== null) body.priority = args.priority;
     if (taskListId) body.taskListId = taskListId;
+    if (args.estimated_duration) body.estimatedDuration = args.estimated_duration;
+    if (args.timezone) body.timeZone = args.timezone;
+    if (args.tags) body.tags = args.tags;
+    if (args.description_content_type) body.descriptionContentType = args.description_content_type;
 
     const response = await morgenFetch("/v3/tasks/create", {
       method: "POST",
@@ -271,12 +352,27 @@ export const taskHandlers = {
     if (args.title !== undefined) {
       title = validateTitle(args.title);
     }
+    if (args.estimated_duration !== undefined && args.estimated_duration !== null) {
+      validateIsoDuration(args.estimated_duration, "estimated_duration");
+    }
+    if (args.tags !== undefined && args.tags !== null) {
+      validateTaskTags(args.tags);
+    }
+    if (args.description_content_type !== undefined && args.description_content_type !== null) {
+      if (!DESCRIPTION_CONTENT_TYPES.includes(args.description_content_type)) {
+        throw new Error(`description_content_type must be one of: ${DESCRIPTION_CONTENT_TYPES.join(", ")}`);
+      }
+    }
 
     const body = { id };
     if (title !== undefined) body.title = title;
     if (description !== undefined) body.description = description;
     if (args.due !== undefined && args.due !== null) body.due = args.due;
     if (args.priority !== undefined && args.priority !== null) body.priority = args.priority;
+    if (args.estimated_duration) body.estimatedDuration = args.estimated_duration;
+    if (args.timezone) body.timeZone = args.timezone;
+    if (args.tags) body.tags = args.tags;
+    if (args.description_content_type) body.descriptionContentType = args.description_content_type;
 
     if (Object.keys(body).length === 1) {
       throw new Error("update_task requires at least one field to update besides task_id");

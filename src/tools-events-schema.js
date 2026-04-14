@@ -3,6 +3,10 @@
 
 const SERIES_UPDATE_MODES = ["single", "future", "all"];
 const RSVP_RESPONSES = ["accept", "decline", "tentative"];
+const EVENT_PRIVACY = ["public", "private", "secret"];
+const FREE_BUSY_STATUS = ["free", "busy"];
+const VIRTUAL_ROOM_TYPES = ["default", "googleMeet", "microsoftTeams"];
+const ACCOUNT_NAMES = ["lorecraft", "parzvl", "bloom"];
 
 export const EVENT_TOOLS = [
   {
@@ -44,14 +48,20 @@ export const EVENT_TOOLS = [
   {
     name: "create_event",
     description:
-      "Create a calendar event. Defaults to the first writable calendar if calendar_id is omitted. Converts start/end from ISO 8601 UTC to Morgen's LocalDateTime + duration form using the configured timezone.",
+      "Create a calendar event. If calendar_id is omitted, smart routing picks the right account automatically: obvious PARZVL signals (participants@parzvl.com, 'parzvl'/'beard club' in title/description) route to the PARZVL calendar, obvious BLOOM signals (participants@bloomit.ai, 'bloom'/'bloomit') route to the BLOOM calendar, everything else defaults to nate@lorecraft.io. Pass `account: 'parzvl' | 'bloom' | 'lorecraft'` to override the inference explicitly.",
     inputSchema: {
       type: "object",
       properties: {
         calendar_id: {
           type: "string",
           description:
-            "Calendar ID to create the event in. Defaults to the first writable calendar if omitted.",
+            "Specific calendar ID to target. When provided, overrides smart routing and the `account` override. Use list_calendars to discover IDs.",
+        },
+        account: {
+          type: "string",
+          enum: ACCOUNT_NAMES,
+          description:
+            "Force the event onto a specific connected account (overrides smart routing). One of 'lorecraft', 'parzvl', 'bloom'.",
         },
         title: { type: "string", description: "Event title" },
         start: {
@@ -66,10 +76,10 @@ export const EVENT_TOOLS = [
         timezone: {
           type: "string",
           description:
-            "IANA timezone for the event (e.g. 'America/New_York'). Defaults to MORGEN_TIMEZONE env var or America/New_York.",
+            "IANA timezone for the event (e.g. 'America/New_York'). Defaults to MORGEN_TIMEZONE env var or the system's detected timezone.",
         },
         description: { type: "string", description: "Event description" },
-        location: { type: "string", description: "Event location" },
+        location: { type: "string", description: "Event location (wrapped into Morgen's keyed Location map automatically)" },
         participants: {
           type: "array",
           items: { type: "string" },
@@ -81,6 +91,31 @@ export const EVENT_TOOLS = [
           description:
             "Morgen RecurrenceRule objects (not RFC 5545 strings). Example: [{\"@type\":\"RecurrenceRule\",\"frequency\":\"weekly\",\"interval\":1,\"byDay\":[{\"@type\":\"NDay\",\"day\":\"mo\"}]}].",
           items: { type: "object" },
+        },
+        privacy: {
+          type: "string",
+          enum: EVENT_PRIVACY,
+          description: "Event privacy level: 'public', 'private', or 'secret'.",
+        },
+        free_busy_status: {
+          type: "string",
+          enum: FREE_BUSY_STATUS,
+          description: "How the event affects your free/busy state: 'free' or 'busy'. Defaults to 'busy' on Morgen's side.",
+        },
+        virtual_room: {
+          type: "string",
+          enum: VIRTUAL_ROOM_TYPES,
+          description:
+            "Request a virtual meeting room: 'default' (no room), 'googleMeet' (auto-create Google Meet), or 'microsoftTeams' (auto-create Teams). Note: virtual rooms cannot be removed once attached.",
+        },
+        color_id: {
+          type: "string",
+          description: "Google Calendar color ID (1-11) — only applies to events on Google-integration calendars.",
+        },
+        alerts: {
+          type: "object",
+          description:
+            "Optional Morgen alerts map. Advanced: pass the exact shape Morgen's API expects (keyed by alert ID with {@type, trigger, action} objects).",
         },
       },
       required: ["title", "start", "end"],
@@ -110,8 +145,7 @@ export const EVENT_TOOLS = [
         },
         timezone: {
           type: "string",
-          description:
-            "IANA timezone. Defaults to MORGEN_TIMEZONE env var or America/New_York.",
+          description: "IANA timezone. Defaults to MORGEN_TIMEZONE env var or the system timezone.",
         },
         description: { type: "string", description: "New description" },
         location: { type: "string", description: "New location" },
@@ -125,6 +159,29 @@ export const EVENT_TOOLS = [
           enum: SERIES_UPDATE_MODES,
           description:
             "For recurring events: 'single' (this occurrence, default), 'future' (this and future), or 'all' (entire series). Sent as a query parameter.",
+        },
+        privacy: {
+          type: "string",
+          enum: EVENT_PRIVACY,
+          description: "Event privacy: 'public', 'private', or 'secret'.",
+        },
+        free_busy_status: {
+          type: "string",
+          enum: FREE_BUSY_STATUS,
+          description: "Free/busy state: 'free' or 'busy'.",
+        },
+        virtual_room: {
+          type: "string",
+          enum: VIRTUAL_ROOM_TYPES,
+          description: "Request a virtual meeting room: 'default', 'googleMeet', or 'microsoftTeams'. Rooms cannot be removed once attached.",
+        },
+        color_id: {
+          type: "string",
+          description: "Google Calendar color ID (1-11).",
+        },
+        alerts: {
+          type: "object",
+          description: "Advanced: Morgen alerts map (keyed by alert ID).",
         },
       },
       required: ["event_id", "calendar_id"],
@@ -157,7 +214,7 @@ export const EVENT_TOOLS = [
   {
     name: "rsvp_event",
     description:
-      "Respond to an event invitation. Accepts, declines, or marks tentative.",
+      "Respond to an event invitation (accept, decline, or tentative). Implemented as a PATCH to /v3/events/update that updates your own participant entry's participationStatus — Morgen has no dedicated RSVP endpoint. Your own email is resolved from MORGEN_SELF_EMAIL env var, or derived from the target calendar's name (most of Nathan's Google calendars are named after the email). Override with the self_email argument if neither works.",
     inputSchema: {
       type: "object",
       properties: {
@@ -169,7 +226,11 @@ export const EVENT_TOOLS = [
         response: {
           type: "string",
           enum: RSVP_RESPONSES,
-          description: "RSVP response: 'accept', 'decline', or 'tentative'",
+          description: "RSVP response: 'accept', 'decline', or 'tentative' (maps to Morgen's 'accepted', 'declined', 'tentative').",
+        },
+        self_email: {
+          type: "string",
+          description: "Optional override for the email keying the participant map. Only needed if MORGEN_SELF_EMAIL isn't set and the calendar name isn't an email.",
         },
       },
       required: ["event_id", "calendar_id", "response"],
@@ -178,4 +239,11 @@ export const EVENT_TOOLS = [
   },
 ];
 
-export { SERIES_UPDATE_MODES, RSVP_RESPONSES };
+export {
+  SERIES_UPDATE_MODES,
+  RSVP_RESPONSES,
+  EVENT_PRIVACY,
+  FREE_BUSY_STATUS,
+  VIRTUAL_ROOM_TYPES,
+  ACCOUNT_NAMES,
+};

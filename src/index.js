@@ -32,7 +32,7 @@ const HANDLERS = { ...eventHandlers, ...taskHandlers };
 
 // Server setup
 const server = new Server(
-  { name: "morgen", version: "0.1.2" },
+  { name: "morgen", version: "0.1.3" },
   { capabilities: { tools: {} } }
 );
 
