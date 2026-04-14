@@ -44,7 +44,7 @@ const HANDLERS = {
 
 // Server setup
 const server = new Server(
-  { name: "morgen", version: "0.1.5" },
+  { name: "morgen", version: "0.1.6" },
   { capabilities: { tools: {} } }
 );
 
@@ -80,9 +80,27 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   } catch (error) {
     // Sanitize error: strip URLs so API endpoints/keys don't leak, and
     // fall back to a generic message for unexpected (non-Error) throws.
+    const URL_REDACT = /https?:\/\/[^\s)]+/g;
     const safeMessage = (error instanceof Error && error.message)
-      ? error.message.replace(/https?:\/\/[^\s)]+/g, "[redacted-url]")
+      ? error.message.replace(URL_REDACT, "[redacted-url]")
       : "An unexpected error occurred";
+
+    // v0.1.6: partial-failure metadata attached by handlers (reflow_day's
+    // err.reflow = { applied, pending, ... } and event_to_task's
+    // err.conversion = { task_id, ... }) was being silently stripped by the
+    // top-level catch. Surface it on both the stderr log and the tool
+    // response so callers can recover without re-running a dry_run.
+    const structuredMeta = {};
+    if (error && typeof error === "object") {
+      if (error.reflow) structuredMeta.reflow = error.reflow;
+      if (error.conversion) structuredMeta.conversion = error.conversion;
+    }
+    const hasMeta = Object.keys(structuredMeta).length > 0;
+    // Re-use the URL scrubber on the serialized metadata so nested
+    // error_message fields can't leak endpoints either.
+    const metaJson = hasMeta
+      ? JSON.stringify(structuredMeta, null, 2).replace(URL_REDACT, "[redacted-url]")
+      : null;
 
     console.error(JSON.stringify({
       event: "tool_call",
@@ -90,10 +108,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       status: "error",
       durationMs: Date.now() - startTime,
       error: safeMessage,
+      ...(hasMeta ? { metadata: structuredMeta } : {}),
     }));
 
     return {
-      content: [{ type: "text", text: `Error: ${safeMessage}` }],
+      content: [{
+        type: "text",
+        text: hasMeta
+          ? `Error: ${safeMessage}\n\nPartial state metadata:\n${metaJson}`
+          : `Error: ${safeMessage}`,
+      }],
       isError: true,
     };
   }

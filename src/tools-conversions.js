@@ -19,6 +19,7 @@
 import { taskHandlers } from "./tools-tasks.js";
 import { eventHandlers } from "./tools-events.js";
 import { validateId } from "./validation.js";
+import { resolveDateTimeInput } from "./nl-date-parser.js";
 
 const MAX_TITLE_LEN = 500;
 const MAX_DESCRIPTION_LEN = 5000;
@@ -70,7 +71,7 @@ export async function handleEventToTask(args = {}) {
   if (args.estimated_duration) {
     taskArgs.estimated_duration = args.estimated_duration;
   }
-  if (args.due) taskArgs.due = args.due;
+  if (args.due) taskArgs.due = resolveDateTimeInput(args.due);
   if (Array.isArray(args.tags) && args.tags.length > 0) {
     taskArgs.tags = args.tags;
   }
@@ -160,7 +161,8 @@ export const CONVERSION_TOOLS = [
         },
         due: {
           type: "string",
-          description: "Optional ISO 8601 due date-time.",
+          description:
+            "Optional due date-time — ISO 8601 or natural language (e.g. 'friday at 5pm').",
         },
         tags: {
           type: "array",

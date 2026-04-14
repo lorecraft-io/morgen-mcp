@@ -21,6 +21,7 @@ import {
   resolveSelfEmail,
 } from "./calendar-cache.js";
 import { mapEvent, unwrapEvents } from "./events-shape.js";
+import { resolveDateInput, resolveTimeInput } from "./nl-date-parser.js";
 
 // Hard cap on explicit event_ids per reflow_day call. Each mutation costs 1
 // point against Morgen's 100-point / 15-minute budget, and the auto-fetch
@@ -201,9 +202,20 @@ async function fetchRawEventsForCalendar(calendarMeta, startIso, endIso) {
 }
 
 export async function handleReflowDay(args = {}) {
-  const anchorTime = validateAnchorTime(args.anchor_time);
   const timeZone = args.timezone || resolveDefaultTimezone();
-  const date = args.date ? validateReflowDate(args.date) : todayInTimezone(timeZone);
+  // v0.1.6: accept natural-language time/date too. resolveTimeInput keeps
+  // the HH:MM/HH:MM:SS fast path identical to the old regex behavior and
+  // only falls through to chrono for casual phrases like "1pm".
+  const normalizedAnchor = args.anchor_time !== undefined
+    ? resolveTimeInput(args.anchor_time)
+    : args.anchor_time;
+  const anchorTime = validateAnchorTime(normalizedAnchor);
+  let date;
+  if (args.date) {
+    date = validateReflowDate(resolveDateInput(args.date, timeZone));
+  } else {
+    date = todayInTimezone(timeZone);
+  }
   const dryRun = args.dry_run === false ? false : true;
   const protectFixed = args.protect_fixed === false ? false : true;
 
@@ -255,14 +267,22 @@ export async function handleReflowDay(args = {}) {
     // v0.1.5 fix: use resolveSelfEmail instead of calendarMeta.name so the
     // filter works when a calendar is renamed (e.g. "Work" instead of the
     // account email). Falls back to MORGEN_SELF_EMAIL env var.
-    let selfEmail;
-    try {
-      selfEmail = resolveSelfEmail(calendarMeta);
-    } catch (err) {
-      throw new Error(
-        `reflow_day auto mode cannot determine your self-email for the solo-block filter. ` +
-        `Set MORGEN_SELF_EMAIL in your MCP env, pass event_ids explicitly, or set protect_fixed: false.`
-      );
+    //
+    // v0.1.6 fix: only resolve self-email when protect_fixed is actually
+    // going to use it. The v0.1.5 version called resolveSelfEmail before the
+    // protect_fixed check, so `protect_fixed: false` still raised when neither
+    // MORGEN_SELF_EMAIL was set nor the calendar name was email-shaped — even
+    // though the caller had explicitly opted out of the solo-block filter.
+    let selfEmail = null;
+    if (protectFixed) {
+      try {
+        selfEmail = resolveSelfEmail(calendarMeta);
+      } catch (err) {
+        throw new Error(
+          `reflow_day auto mode cannot determine your self-email for the solo-block filter. ` +
+          `Set MORGEN_SELF_EMAIL in your MCP env, pass event_ids explicitly, or set protect_fixed: false.`
+        );
+      }
     }
     candidates = sameDay.filter((e) => {
       if (!e.duration) return false;
@@ -372,11 +392,13 @@ export const REFLOW_TOOLS = [
       properties: {
         anchor_time: {
           type: "string",
-          description: "Local time the first reflowed event should start — HH:MM or HH:MM:SS, 24-hour.",
+          description:
+            "Local time the first reflowed event should start — HH:MM / HH:MM:SS (24-hour) or natural language like '1pm', '3:30pm'.",
         },
         date: {
           type: "string",
-          description: "YYYY-MM-DD. Defaults to today in the caller's timezone.",
+          description:
+            "Target date — YYYY-MM-DD or natural language ('today', 'tomorrow', 'next monday'). Defaults to today in the caller's timezone.",
         },
         calendar_id: {
           type: "string",
