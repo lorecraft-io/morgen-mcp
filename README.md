@@ -58,6 +58,27 @@ Unlike other calendar integrations that require extracting refresh tokens from b
 | `reopen_task` | Reopen a completed task |
 | `delete_task` | Delete a task permanently |
 
+> **Note on `tags`:** The `tags` parameter was removed from `create_task` / `update_task` in v0.1.4 because Morgen's API rejects the MCP's previous wire shape with HTTP 400. The correct shape is still unverified (Morgen's docs just say "Array"). It will return in v0.1.5 once the shape is confirmed against a live example.
+
+> **Note on create/update responses:** Morgen's `/v3/tasks/create` and `/v3/tasks/update` responses only echo the task ID — not the full object. `create_task` and `update_task` synthesize a return shape from the request body + returned ID for immediate use. For server-authoritative state (after Morgen applies defaults), call `list_tasks` afterwards.
+
+### Reflow Tools
+
+| Tool | Description |
+|---|---|
+| `reflow_day` | Compress a day's events back-to-back starting from an anchor time. Defaults to dry_run mode. Auto-filters to solo blocks (no external participants) so real meetings never move. Pass `event_ids` to reflow an explicit set, or let the tool auto-detect solo blocks on the target calendar. |
+
+**Example:** *"I just finished the Mama call early. Reflow the rest of today's focus blocks starting at 1:00 PM, dry run first."*
+
+```
+reflow_day {
+  anchor_time: "13:00",
+  dry_run: true
+}
+```
+
+Returns a plan showing each event's old start → new start. Re-run with `dry_run: false` to commit.
+
 ## Important Note About Tasks
 
 Morgen's `/tasks` endpoints only manage **first-party native Morgen tasks** -- the ones created directly inside Morgen with `integrationId: "morgen"`. Tasks that Morgen syncs in from external providers like Todoist, Google Tasks, Microsoft To Do, or Things are fully visible in the Morgen app but are **not writable through this MCP**. The Morgen API intentionally scopes write access to its own first-party task system.
