@@ -1,17 +1,27 @@
 // Morgen task tools — native Morgen tasks only (integrationId: "morgen").
 // Tasks synced from external providers (Todoist, etc.) are NOT writable via /v3/tasks endpoints.
 //
-// v0.1.4 notes:
+// v0.1.4 notes (still apply):
 //   - Morgen's /v3/tasks/create response only echoes { data: { id } } — it does
 //     NOT return the full task object. We synthesize the create/update return
 //     shape from the request body + returned ID. Call list_tasks afterwards
 //     for server-authoritative state.
-//   - The `tags` field was temporarily removed from create_task + update_task
-//     because Morgen rejects string-array tags with HTTP 400. The correct
-//     wire shape is still unknown (docs just say "Array"). Will reintroduce
-//     in v0.1.5 once the shape is confirmed against a live doc example.
+//
+// v0.1.5 notes:
+//   - `tags` is back! Users pass human-readable label strings; the handler
+//     resolves them to Morgen tag UUIDs via /v3/tags/list + /v3/tags/create
+//     and then sends the UUID array in the task body (Morgen's real wire
+//     shape — confirmed against https://docs.morgen.so/tasks).
+//   - Rate-limit cost for a tagged create/update: 10 (tags/list) + N per new
+//     tag (tags/create) + 1 (task create/update). Document this cost to the
+//     caller so they know it's more expensive than a plain create.
 import { morgenFetch } from "./client.js";
 import { validateId, validateISODate, validateIntegerRange } from "./validation.js";
+import { resolveTagLabelsToIds, validateTagLabels } from "./tags.js";
+
+// Re-export tag helpers so existing imports from tools-tasks.js keep working
+// and unit tests can reach them via a single public surface.
+export { resolveTagLabelsToIds, validateTagLabels };
 
 // Priority is an integer 0-9 per https://docs.morgen.so/tasks
 // 0 = undefined, 1 = highest, 9 = lowest
@@ -33,6 +43,9 @@ function validateIsoDuration(value, field = "estimated_duration") {
   }
   return value;
 }
+
+// Note: validateTagLabels + resolveTagLabelsToIds moved to ./tags.js in v0.1.5
+// to keep this file under the 500-line project cap. Re-exported at the top.
 
 function validateTitle(value) {
   if (!value || typeof value !== "string") {
@@ -179,6 +192,13 @@ export const TASK_TOOLS = [
           type: "string",
           description: "Optional IANA timezone (e.g. 'America/New_York') that applies to the task's due time.",
         },
+        tags: {
+          type: "array",
+          items: { type: "string" },
+          maxItems: 50,
+          description:
+            "Optional human-readable tag labels (e.g. ['urgent','admin']). Matched case-insensitively against existing Morgen tags; unknown labels are auto-created as new tags on first use. Costs +10 rate-limit points (tags/list) plus +1 per newly-created tag.",
+        },
         description_content_type: {
           type: "string",
           enum: DESCRIPTION_CONTENT_TYPES,
@@ -224,6 +244,13 @@ export const TASK_TOOLS = [
         timezone: {
           type: "string",
           description: "IANA timezone for the due date.",
+        },
+        tags: {
+          type: "array",
+          items: { type: "string" },
+          maxItems: 50,
+          description:
+            "Replacement tag label array (e.g. ['urgent','admin']). Matched case-insensitively against existing Morgen tags; unknown labels are auto-created. Pass an empty array to clear all tags. Costs +10 rate-limit points (tags/list) plus +1 per newly-created tag.",
         },
         description_content_type: {
           type: "string",
@@ -324,10 +351,20 @@ export const taskHandlers = {
     if (args.estimated_duration !== undefined && args.estimated_duration !== null) {
       validateIsoDuration(args.estimated_duration, "estimated_duration");
     }
+    if (args.tags !== undefined && args.tags !== null) {
+      validateTagLabels(args.tags, "tags");
+    }
     if (args.description_content_type !== undefined && args.description_content_type !== null) {
       if (!DESCRIPTION_CONTENT_TYPES.includes(args.description_content_type)) {
         throw new Error(`description_content_type must be one of: ${DESCRIPTION_CONTENT_TYPES.join(", ")}`);
       }
+    }
+
+    // Resolve tag labels → Morgen tag UUIDs BEFORE building the body so a
+    // tag-resolution failure fails fast without creating an untagged task.
+    let resolvedTagIds;
+    if (Array.isArray(args.tags) && args.tags.length > 0) {
+      resolvedTagIds = await resolveTagLabelsToIds(args.tags);
     }
 
     const body = { title };
@@ -338,6 +375,7 @@ export const taskHandlers = {
     if (args.estimated_duration) body.estimatedDuration = args.estimated_duration;
     if (args.timezone) body.timeZone = args.timezone;
     if (args.description_content_type) body.descriptionContentType = args.description_content_type;
+    if (resolvedTagIds && resolvedTagIds.length > 0) body.tags = resolvedTagIds;
 
     const response = await morgenFetch("/v3/tasks/create", {
       method: "POST",
@@ -366,10 +404,19 @@ export const taskHandlers = {
     if (args.estimated_duration !== undefined && args.estimated_duration !== null) {
       validateIsoDuration(args.estimated_duration, "estimated_duration");
     }
+    if (args.tags !== undefined && args.tags !== null) {
+      validateTagLabels(args.tags, "tags");
+    }
     if (args.description_content_type !== undefined && args.description_content_type !== null) {
       if (!DESCRIPTION_CONTENT_TYPES.includes(args.description_content_type)) {
         throw new Error(`description_content_type must be one of: ${DESCRIPTION_CONTENT_TYPES.join(", ")}`);
       }
+    }
+
+    // Resolve tag labels → Morgen tag UUIDs. Empty array clears all tags.
+    let resolvedTagIds;
+    if (Array.isArray(args.tags)) {
+      resolvedTagIds = args.tags.length === 0 ? [] : await resolveTagLabelsToIds(args.tags);
     }
 
     const body = { id };
@@ -380,6 +427,7 @@ export const taskHandlers = {
     if (args.estimated_duration) body.estimatedDuration = args.estimated_duration;
     if (args.timezone) body.timeZone = args.timezone;
     if (args.description_content_type) body.descriptionContentType = args.description_content_type;
+    if (resolvedTagIds !== undefined) body.tags = resolvedTagIds;
 
     if (Object.keys(body).length === 1) {
       throw new Error("update_task requires at least one field to update besides task_id");

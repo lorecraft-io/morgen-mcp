@@ -18,8 +18,16 @@ import { validateId } from "./validation.js";
 import {
   resolveCalendarMeta,
   resolveDefaultCalendarMeta,
+  resolveSelfEmail,
 } from "./calendar-cache.js";
 import { mapEvent, unwrapEvents } from "./events-shape.js";
+
+// Hard cap on explicit event_ids per reflow_day call. Each mutation costs 1
+// point against Morgen's 100-point / 15-minute budget, and the auto-fetch
+// of events/list costs 10. Capping at 50 keeps the whole call under the
+// budget even in the worst case and prevents a caller-driven rate-limit
+// storm that would strand the calendar in a half-reflowed state.
+const MAX_EVENT_IDS = 50;
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/;
@@ -233,10 +241,29 @@ export async function handleReflowDay(args = {}) {
 
   let candidates;
   if (Array.isArray(args.event_ids) && args.event_ids.length > 0) {
+    if (args.event_ids.length > MAX_EVENT_IDS) {
+      throw new Error(
+        `event_ids may not exceed ${MAX_EVENT_IDS} entries (rate-limit safety cap)`
+      );
+    }
+    for (let i = 0; i < args.event_ids.length; i++) {
+      validateId(args.event_ids[i], `event_ids[${i}]`);
+    }
     const idSet = new Set(args.event_ids);
     candidates = sameDay.filter((e) => idSet.has(e.id) && e.duration);
   } else {
-    const selfEmail = calendarMeta.name;
+    // v0.1.5 fix: use resolveSelfEmail instead of calendarMeta.name so the
+    // filter works when a calendar is renamed (e.g. "Work" instead of the
+    // account email). Falls back to MORGEN_SELF_EMAIL env var.
+    let selfEmail;
+    try {
+      selfEmail = resolveSelfEmail(calendarMeta);
+    } catch (err) {
+      throw new Error(
+        `reflow_day auto mode cannot determine your self-email for the solo-block filter. ` +
+        `Set MORGEN_SELF_EMAIL in your MCP env, pass event_ids explicitly, or set protect_fixed: false.`
+      );
+    }
     candidates = sameDay.filter((e) => {
       if (!e.duration) return false;
       if (protectFixed && !isSoloBlock(mapEvent(e), selfEmail)) return false;
@@ -275,26 +302,55 @@ export async function handleReflowDay(args = {}) {
     };
   }
 
-  // FIXME v0.1.5: no rollback on partial failure. If update_event fails on
-  // step 3 of 5, steps 1-2 are already mutated on the server and 3-5 are
-  // not — the calendar is left in an inconsistent half-reflowed state with
-  // only a thrown error to signal it. Options: (a) capture applied steps
-  // and attempt inverse updates on failure, (b) return a structured error
-  // that lists applied vs pending steps so the caller can recover manually.
+  // v0.1.5: track applied vs pending steps so a mid-loop failure produces a
+  // structured error the caller can use to recover manually. We do NOT
+  // attempt an automatic rollback because update_event is not idempotent
+  // w.r.t. Morgen's internal timestamps and an inverse update could itself
+  // fail, compounding the inconsistency. The goal is observability, not
+  // transactional guarantees — the caller (usually Claude) sees which
+  // events committed and which didn't, and can ask the user how to proceed.
+  const applied = [];
+  const pending = plan.slice();
+  let failure = null;
   for (const step of plan) {
-    await morgenFetch("/v3/events/update", {
-      method: "POST",
-      body: {
-        id: step.event_id,
-        accountId: calendarMeta.accountId,
-        calendarId: calendarMeta.id,
-        start: step.new_start,
-        timeZone,
-        duration: step.duration,
-        showWithoutTime: false,
-      },
-      points: 1,
-    });
+    try {
+      await morgenFetch("/v3/events/update", {
+        method: "POST",
+        body: {
+          id: step.event_id,
+          accountId: calendarMeta.accountId,
+          calendarId: calendarMeta.id,
+          start: step.new_start,
+          timeZone,
+          duration: step.duration,
+          showWithoutTime: false,
+        },
+        points: 1,
+      });
+      applied.push(step);
+      pending.shift();
+    } catch (err) {
+      failure = {
+        step,
+        error: err instanceof Error ? err.message : String(err),
+      };
+      break;
+    }
+  }
+
+  if (failure) {
+    const err = new Error(
+      `reflow_day partial failure at step ${applied.length + 1} of ${plan.length}: ${failure.error}. ` +
+      `${applied.length} event(s) already moved; ${pending.length} event(s) still at original times.`
+    );
+    err.reflow = {
+      applied,
+      pending,
+      failed_at: failure.step.event_id,
+      failed_step_index: applied.length,
+      error_message: failure.error,
+    };
+    throw err;
   }
 
   return {
@@ -329,8 +385,9 @@ export const REFLOW_TOOLS = [
         event_ids: {
           type: "array",
           items: { type: "string" },
+          maxItems: 50,
           description:
-            "Explicit list of event IDs to reflow. When set, bypasses auto-detection and protect_fixed. Sorted by current start time before compression.",
+            "Explicit list of event IDs to reflow. When set, bypasses auto-detection and protect_fixed. Sorted by current start time before compression. Capped at 50 for rate-limit safety.",
         },
         timezone: {
           type: "string",
