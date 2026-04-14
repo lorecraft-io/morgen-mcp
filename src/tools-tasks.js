@@ -126,6 +126,9 @@ function synthesizeTaskFromBody(body, serverResponse, { isCreate = false } = {})
   };
 }
 
+// v0.1.4: exported for unit tests
+export { synthesizeTaskFromBody };
+
 export const TASK_TOOLS = [
   {
     name: "list_tasks",
