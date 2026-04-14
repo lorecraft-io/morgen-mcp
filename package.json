@@ -1,0 +1,44 @@
+{
+  "name": "morgen-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Morgen — events, tasks, and calendar management for Claude Code via natural language",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "morgen-mcp": "src/index.js"
+  },
+  "files": [
+    "src/",
+    "bin/",
+    ".env.example",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "start": "node src/index.js",
+    "setup": "node bin/setup.js",
+    "test": "vitest run"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "keywords": ["mcp", "morgen", "calendar", "tasks", "claude", "ai", "productivity", "scheduling"],
+  "author": "Nathan Davidovich <nate@lorecraft.io>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lorecraft-io/morgen-mcp"
+  },
+  "homepage": "https://github.com/lorecraft-io/morgen-mcp#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "dotenv": "17.4.0"
+  },
+  "devDependencies": {
+    "vitest": "4.1.2"
+  }
+}
