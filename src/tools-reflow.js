@@ -142,11 +142,25 @@ export function isSoloBlock(event, selfEmail) {
 // return a plan that chains them back-to-back from the anchor, preserving
 // each event's original duration. Pure function — used by the handler and
 // unit tests.
+// FIXME v0.1.5: overlapping source events (e.g. two events that overlap by
+// 5 min in the original schedule) are silently de-overlapped here — we sort
+// by start then chain back-to-back, so the second event is placed strictly
+// after the first regardless of original overlap. This is usually what the
+// caller wants for reflow, but we should either document this explicitly in
+// the tool description or warn when the input had overlaps.
+// FIXME v0.1.5: anchor + sum(durations) can roll past 23:59:59 into the next
+// day via addSecondsToLocal's Date math. No check that the compressed plan
+// still fits inside the target `date`. A full day of PT1H blocks starting at
+// 18:00 will silently schedule events into tomorrow's LocalDateTime.
 export function compressSchedule(events, anchorLocal) {
   const sorted = [...events].sort((a, b) => compareLocal(a.start, b.start));
   const plan = [];
   let cursor = anchorLocal;
   for (const ev of sorted) {
+    // FIXME v0.1.5: throws if ev.duration is missing/invalid. handleReflowDay
+    // filters on `!e.duration` upstream, but compressSchedule is exported and
+    // unit-tested as a pure function — external callers can still hit this.
+    // Either skip events with missing duration here or document the contract.
     const durationSeconds = parseIsoDurationSeconds(ev.duration);
     const newStart = cursor;
     const newEnd = addSecondsToLocal(cursor, durationSeconds);
@@ -261,6 +275,12 @@ export async function handleReflowDay(args = {}) {
     };
   }
 
+  // FIXME v0.1.5: no rollback on partial failure. If update_event fails on
+  // step 3 of 5, steps 1-2 are already mutated on the server and 3-5 are
+  // not — the calendar is left in an inconsistent half-reflowed state with
+  // only a thrown error to signal it. Options: (a) capture applied steps
+  // and attempt inverse updates on failure, (b) return a structured error
+  // that lists applied vs pending steps so the caller can recover manually.
   for (const step of plan) {
     await morgenFetch("/v3/events/update", {
       method: "POST",
