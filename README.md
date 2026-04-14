@@ -76,6 +76,46 @@ Unlike other calendar integrations that require extracting refresh tokens from b
 |---|---|
 | `event_to_task` | Soft-convert a calendar event into a Morgen task. Bundles `create_task` + `delete_event` into one call. The resulting task lands in your Morgen inbox — Morgen's public API does not expose the task-to-calendar linkage, so you'll need to drag the task to a calendar slot manually in the Morgen web app to get the checkbox render. Pass `delete_original: false` to keep the source event. |
 
+### Natural language support (v0.1.6)
+
+Every tool that takes a date, time, or recurrence pattern now accepts natural language in addition to strict ISO / Morgen shapes. You never have to hand-build an ISO 8601 string or a `RecurrenceRule` object unless you want to.
+
+**Date and time inputs** — `create_event.start`, `create_event.end`, `update_event.start`, `update_event.end`, `list_events.start`, `list_events.end`, `create_task.due`, `update_task.due`, `event_to_task.due`, `reflow_day.date`, and `reflow_day.anchor_time` all accept casual phrases:
+
+```
+"tomorrow at 3pm"
+"next friday 10am"
+"in 2 hours"
+"friday at 5pm"
+"today"
+"next monday"
+"1pm"
+"3:30pm"
+```
+
+ISO 8601 still works unchanged — if the string already matches `YYYY-MM-DDTHH:MM` (or `YYYY-MM-DD` for date-only fields, or `HH:MM` for time-only fields), it's passed through untouched. Natural-language parsing respects the caller's timezone, so "tomorrow at 9am" resolves to a different UTC instant in `America/New_York` vs `Europe/London`.
+
+**Recurrence** — `create_event.recurrence_rules` and `update_event.recurrence_rules` now accept a plain string *or* the original array of Morgen `RecurrenceRule` objects:
+
+```
+"daily" / "every day"
+"weekly" / "every week"
+"monthly" / "yearly" / "annually"
+"every 2 weeks" / "biweekly" / "every other week"
+"every monday"
+"every tuesday and thursday"
+"weekdays" / "weekends"
+"first monday of every month"
+"last friday of every month"
+"every 6 months"
+```
+
+Example — a weekly 1:1 that Claude can now wire up from a sentence:
+
+> "Create a 30-minute call with drew@example.com every tuesday at 2pm"
+
+The old hand-built `recurrence_rules: [{ "@type": "RecurrenceRule", frequency: "weekly", ... }]` shape is still accepted unchanged, so existing scripted callers don't need to migrate.
+
 **Example:** *"I just finished the Mama call early. Reflow the rest of today's focus blocks starting at 1:00 PM, dry run first."*
 
 ```

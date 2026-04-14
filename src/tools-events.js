@@ -35,6 +35,8 @@ import {
   SERIES_UPDATE_MODES,
   RSVP_RESPONSES,
 } from "./tools-events-schema.js";
+import { resolveDateTimeInput } from "./nl-date-parser.js";
+import { parseRecurrenceString } from "./nl-recurrence.js";
 
 // Morgen's participationStatus uses past-tense forms; the MCP's user-facing
 // input accepts the bare verb. Map on the way out.
@@ -118,6 +120,9 @@ async function fetchEventsForAccount(accountId, calendarIds, start, end) {
 }
 
 async function handleListEvents(args = {}) {
+  const rangeTz = args.timezone || DEFAULT_TIMEZONE;
+  if (args.start !== undefined) args.start = resolveDateTimeInput(args.start, rangeTz);
+  if (args.end !== undefined) args.end = resolveDateTimeInput(args.end, rangeTz);
   validateISODate(args.start, "start");
   validateISODate(args.end, "end");
 
@@ -159,6 +164,9 @@ async function handleListEvents(args = {}) {
 
 async function handleCreateEvent(args = {}) {
   validateRequiredString(args.title, "title", MAX_TITLE_LEN);
+  const createTz = args.timezone || DEFAULT_TIMEZONE;
+  if (args.start !== undefined) args.start = resolveDateTimeInput(args.start, createTz);
+  if (args.end !== undefined) args.end = resolveDateTimeInput(args.end, createTz);
   validateISODate(args.start, "start");
   validateISODate(args.end, "end");
 
@@ -176,6 +184,9 @@ async function handleCreateEvent(args = {}) {
     validateParticipantEmails(args.participants);
   }
   if (args.recurrence_rules !== undefined) {
+    // v0.1.6: accept natural-language strings too. parseRecurrenceString
+    // passes arrays through unchanged, so existing callers keep working.
+    args.recurrence_rules = parseRecurrenceString(args.recurrence_rules);
     validateRecurrenceRules(args.recurrence_rules);
   }
   if (args.privacy !== undefined) validateEnum(args.privacy, EVENT_PRIVACY, "privacy");
@@ -268,8 +279,15 @@ async function handleUpdateEvent(args = {}) {
   if (args.location !== undefined) {
     validateString(args.location, "location", MAX_LOCATION_LEN);
   }
-  if (args.start !== undefined) validateISODate(args.start, "start");
-  if (args.end !== undefined) validateISODate(args.end, "end");
+  const updateTz = args.timezone || DEFAULT_TIMEZONE;
+  if (args.start !== undefined) {
+    args.start = resolveDateTimeInput(args.start, updateTz);
+    validateISODate(args.start, "start");
+  }
+  if (args.end !== undefined) {
+    args.end = resolveDateTimeInput(args.end, updateTz);
+    validateISODate(args.end, "end");
+  }
   if (args.start !== undefined && args.end !== undefined) {
     if (Date.parse(args.end) < Date.parse(args.start)) {
       throw new Error("end must be on or after start");
@@ -277,6 +295,10 @@ async function handleUpdateEvent(args = {}) {
   }
   if (args.participants !== undefined) {
     validateParticipantEmails(args.participants);
+  }
+  if (args.recurrence_rules !== undefined) {
+    args.recurrence_rules = parseRecurrenceString(args.recurrence_rules);
+    validateRecurrenceRules(args.recurrence_rules);
   }
   if (args.series_update_mode !== undefined) {
     validateEnum(args.series_update_mode, SERIES_UPDATE_MODES, "series_update_mode");
@@ -308,6 +330,9 @@ async function handleUpdateEvent(args = {}) {
   if (args.location !== undefined) body.locations = toLocationsMap(args.location);
   if (args.participants !== undefined) {
     body.participants = toParticipantMap(args.participants);
+  }
+  if (args.recurrence_rules !== undefined) {
+    body.recurrenceRules = args.recurrence_rules;
   }
   if (args.privacy !== undefined) body.privacy = args.privacy;
   if (args.free_busy_status !== undefined) body.freeBusyStatus = args.free_busy_status;

@@ -18,6 +18,7 @@
 import { morgenFetch } from "./client.js";
 import { validateId, validateISODate, validateIntegerRange } from "./validation.js";
 import { resolveTagLabelsToIds, validateTagLabels } from "./tags.js";
+import { resolveDateTimeInput } from "./nl-date-parser.js";
 
 // Re-export tag helpers so existing imports from tools-tasks.js keep working
 // and unit tests can reach them via a single public surface.
@@ -170,7 +171,8 @@ export const TASK_TOOLS = [
         },
         due: {
           type: "string",
-          description: "Optional ISO 8601 due date-time (e.g. 2026-04-20T17:00:00.000Z).",
+          description:
+            "Optional due date-time — ISO 8601 (2026-04-20T17:00:00.000Z) or natural language (e.g. 'friday at 5pm', 'tomorrow', 'next monday 9am').",
         },
         priority: {
           type: "integer",
@@ -229,7 +231,8 @@ export const TASK_TOOLS = [
         },
         due: {
           type: "string",
-          description: "New ISO 8601 due date-time.",
+          description:
+            "New due date-time — ISO 8601 or natural language (e.g. 'friday at 5pm').",
         },
         priority: {
           type: "integer",
@@ -339,6 +342,7 @@ export const taskHandlers = {
     const title = validateTitle(args.title);
     const description = validateDescription(args.description);
     if (args.due !== undefined && args.due !== null) {
+      args.due = resolveDateTimeInput(args.due, args.timezone);
       validateISODate(args.due, "due");
     }
     if (args.priority !== undefined && args.priority !== null) {
@@ -388,6 +392,7 @@ export const taskHandlers = {
   update_task: async (args = {}) => {
     const id = validateId(args.task_id, "task_id");
     if (args.due !== undefined && args.due !== null) {
+      args.due = resolveDateTimeInput(args.due, args.timezone);
       validateISODate(args.due, "due");
     }
     if (args.priority !== undefined && args.priority !== null) {

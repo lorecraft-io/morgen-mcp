@@ -28,11 +28,18 @@ export const EVENT_TOOLS = [
       properties: {
         start: {
           type: "string",
-          description: "ISO 8601 start of the range (e.g. 2026-04-13T00:00:00Z)",
+          description:
+            "Start of the range — ISO 8601 (2026-04-13T00:00:00Z) or natural language (e.g. 'today', 'monday', 'next week').",
         },
         end: {
           type: "string",
-          description: "ISO 8601 end of the range (e.g. 2026-04-20T00:00:00Z)",
+          description:
+            "End of the range — ISO 8601 (2026-04-20T00:00:00Z) or natural language (e.g. 'friday', 'next sunday', 'in 7 days').",
+        },
+        timezone: {
+          type: "string",
+          description:
+            "IANA timezone used when interpreting natural-language dates. Defaults to MORGEN_TIMEZONE or the system setting.",
         },
         calendar_ids: {
           type: "array",
@@ -66,12 +73,13 @@ export const EVENT_TOOLS = [
         title: { type: "string", description: "Event title" },
         start: {
           type: "string",
-          description: "Start time in ISO 8601 format (UTC or with offset)",
+          description:
+            "Start time — ISO 8601 (2026-04-15T14:00:00-04:00) or natural language (e.g. 'tomorrow at 3pm', 'next friday 10am', 'in 2 hours'). Interpreted in the caller's timezone unless overridden.",
         },
         end: {
           type: "string",
           description:
-            "End time in ISO 8601 format. Used to compute duration; the Morgen API itself stores duration, not end time.",
+            "End time — ISO 8601 or natural language. Used to compute duration; the Morgen API itself stores duration, not end time.",
         },
         timezone: {
           type: "string",
@@ -87,10 +95,21 @@ export const EVENT_TOOLS = [
             "Array of participant email addresses. Each is sent as an attendee; Morgen assigns roles and participation status server-side.",
         },
         recurrence_rules: {
-          type: "array",
+          oneOf: [
+            {
+              type: "string",
+              description:
+                "Natural-language recurrence (e.g. 'every monday', 'weekly', 'biweekly', 'weekdays', 'first friday of every month').",
+            },
+            {
+              type: "array",
+              description:
+                "Morgen RecurrenceRule objects. Example: [{\"@type\":\"RecurrenceRule\",\"frequency\":\"weekly\",\"interval\":1,\"byDay\":[{\"@type\":\"NDay\",\"day\":\"mo\"}]}].",
+              items: { type: "object" },
+            },
+          ],
           description:
-            "Morgen RecurrenceRule objects (not RFC 5545 strings). Example: [{\"@type\":\"RecurrenceRule\",\"frequency\":\"weekly\",\"interval\":1,\"byDay\":[{\"@type\":\"NDay\",\"day\":\"mo\"}]}].",
-          items: { type: "object" },
+            "Recurrence pattern. Accepts a natural-language string like 'every tuesday and thursday' or an array of Morgen RecurrenceRule objects.",
         },
         privacy: {
           type: "string",
@@ -137,11 +156,13 @@ export const EVENT_TOOLS = [
         title: { type: "string", description: "New event title" },
         start: {
           type: "string",
-          description: "New start time in ISO 8601 format",
+          description:
+            "New start time — ISO 8601 or natural language (e.g. 'tomorrow at 3pm').",
         },
         end: {
           type: "string",
-          description: "New end time in ISO 8601 format. Used to recompute duration.",
+          description:
+            "New end time — ISO 8601 or natural language. Used to recompute duration.",
         },
         timezone: {
           type: "string",
@@ -153,6 +174,14 @@ export const EVENT_TOOLS = [
           type: "array",
           items: { type: "string" },
           description: "Replacement participant email list",
+        },
+        recurrence_rules: {
+          oneOf: [
+            { type: "string" },
+            { type: "array", items: { type: "object" } },
+          ],
+          description:
+            "Replacement recurrence pattern. Accepts a natural-language string ('every monday', 'biweekly', 'weekdays') or an array of Morgen RecurrenceRule objects.",
         },
         series_update_mode: {
           type: "string",

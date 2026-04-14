@@ -285,6 +285,69 @@ describe("handleReflowDay — calendar + auth handling", () => {
   });
 });
 
+describe("handleReflowDay — protect_fixed regression (v0.1.6)", () => {
+  it("protect_fixed: false in auto mode does NOT require self-email resolution", async () => {
+    // Simulate a calendar named "Work" (not email-shaped) + no MORGEN_SELF_EMAIL
+    // env. v0.1.5 would throw here even though the caller opted out of the
+    // solo-block filter; v0.1.6 must succeed and return all same-day events.
+    delete process.env.MORGEN_SELF_EMAIL;
+    _resetCalendarCache();
+    _seedCalendarCache([
+      { id: "cal-rw", accountId: "acct-1", name: "Work", readOnly: false },
+    ]);
+    installFetch([
+      makeEvent({
+        id: "meet",
+        title: "Client call",
+        start: "2026-05-01T11:00:00",
+        duration: "PT1H",
+        participants: [SELF_EMAIL, "other@acme.com"],
+      }),
+      makeEvent({
+        id: "focus",
+        title: "Focus block",
+        start: "2026-05-01T10:00:00",
+        duration: "PT30M",
+      }),
+    ]);
+    const out = await handleReflowDay({
+      anchor_time: "09:00",
+      date: "2026-05-01",
+      protect_fixed: false,
+      timezone: "America/New_York",
+    });
+    // Both events land in the plan — filter was skipped.
+    expect(out.reflow).toHaveLength(2);
+    expect(out.reflow.map((r) => r.event_id).sort()).toEqual([
+      "focus",
+      "meet",
+    ]);
+  });
+
+  it("protect_fixed: true (default) still throws with helpful error when self-email cannot be resolved", async () => {
+    delete process.env.MORGEN_SELF_EMAIL;
+    _resetCalendarCache();
+    _seedCalendarCache([
+      { id: "cal-rw", accountId: "acct-1", name: "Work", readOnly: false },
+    ]);
+    installFetch([
+      makeEvent({
+        id: "e1",
+        title: "A",
+        start: "2026-05-01T10:00:00",
+        duration: "PT30M",
+      }),
+    ]);
+    await expect(
+      handleReflowDay({
+        anchor_time: "09:00",
+        date: "2026-05-01",
+        timezone: "America/New_York",
+      })
+    ).rejects.toThrow(/self-email/i);
+  });
+});
+
 describe("handleReflowDay — argument defaults", () => {
   it("dry_run defaults to true when omitted", async () => {
     const { updateCalls } = installFetch([
