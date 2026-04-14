@@ -51,22 +51,30 @@ Unlike other calendar integrations that require extracting refresh tokens from b
 | Tool | Description |
 |---|---|
 | `list_tasks` | List native Morgen tasks |
-| `create_task` | Create a new task with title, description, due date, and priority (integer 0-9; 1 = highest, 9 = lowest) |
-| `update_task` | Update an existing task -- change title, description, due date, or priority |
+| `create_task` | Create a new task with title, description, due date, priority (integer 0-9; 1 = highest, 9 = lowest), and tag labels |
+| `update_task` | Update an existing task -- change title, description, due date, priority, or tag labels |
 | `move_task` | Move a task to a different list |
 | `close_task` | Mark a task as completed |
 | `reopen_task` | Reopen a completed task |
 | `delete_task` | Delete a task permanently |
 
-> **Note on `tags`:** The `tags` parameter was removed from `create_task` / `update_task` in v0.1.4 because Morgen's API rejects the MCP's previous wire shape with HTTP 400. The correct shape is still unverified (Morgen's docs just say "Array"). It will return in v0.1.5 once the shape is confirmed against a live example.
+> **Note on `tags` (v0.1.5):** Pass tags as an array of human-readable **label strings** (e.g. `["urgent","admin"]`). The MCP resolves each label to a Morgen tag UUID via `/v3/tags/list` + `/v3/tags/create` and auto-creates any tag that doesn't already exist. Match is case-insensitive. This costs an extra 10 rate-limit points per tagged call (for the tags/list lookup) plus 1 point per newly-created tag.
 
 > **Note on create/update responses:** Morgen's `/v3/tasks/create` and `/v3/tasks/update` responses only echo the task ID — not the full object. `create_task` and `update_task` synthesize a return shape from the request body + returned ID for immediate use. For server-authoritative state (after Morgen applies defaults), call `list_tasks` afterwards.
+
+> **Note on task scheduling:** Morgen's public API does NOT expose the task-to-calendar linkage (the `morgen.so:metadata.taskId` field on events is read-only). A task created via `create_task` lands in the Morgen inbox WITHOUT a calendar slot. To get the checkbox-on-calendar render that Morgen's web app produces when you drag a task to a time slot, drag it manually in the Morgen UI once — there is no public endpoint for this as of 2026-04-14.
 
 ### Reflow Tools
 
 | Tool | Description |
 |---|---|
-| `reflow_day` | Compress a day's events back-to-back starting from an anchor time. Defaults to dry_run mode. Auto-filters to solo blocks (no external participants) so real meetings never move. Pass `event_ids` to reflow an explicit set, or let the tool auto-detect solo blocks on the target calendar. |
+| `reflow_day` | Compress a day's events back-to-back starting from an anchor time. Defaults to dry_run mode. Auto-filters to solo blocks (no external participants) so real meetings never move. Pass `event_ids` to reflow an explicit set, or let the tool auto-detect solo blocks on the target calendar. Capped at 50 `event_ids` per call for rate-limit safety. On partial failure (mid-loop update_event errors), throws a structured error with `applied_steps` + `pending_steps` so you can recover manually. |
+
+### Conversion Tools
+
+| Tool | Description |
+|---|---|
+| `event_to_task` | Soft-convert a calendar event into a Morgen task. Bundles `create_task` + `delete_event` into one call. The resulting task lands in your Morgen inbox — Morgen's public API does not expose the task-to-calendar linkage, so you'll need to drag the task to a calendar slot manually in the Morgen web app to get the checkbox render. Pass `delete_original: false` to keep the source event. |
 
 **Example:** *"I just finished the Mama call early. Reflow the rest of today's focus blocks starting at 1:00 PM, dry run first."*
 
