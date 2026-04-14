@@ -83,22 +83,24 @@ interface Tag {
 ### Why v0.1.4 tags broke (HTTP 400)
 morgen-mcp ≤ v0.1.3 forwarded user-supplied label strings directly (`tags: ["urgent","admin"]`) into the `/v3/tasks/create` body. Morgen expected UUID references to pre-existing Tag resources, so the label strings failed validation and the whole create call 400'd. Removing the param in v0.1.4 was the correct temporary fix.
 
-### v0.1.5 plan — label-to-ID resolution layer
-Restore a *user-friendly* tags param at the MCP surface (array of label strings) and do the label→ID resolution inside the handler:
+### v0.1.5 — label-to-ID resolution layer (SHIPPED)
+User-friendly `tags` param restored at the MCP surface as an array of label strings. Label → ID resolution happens inside the handler:
 
-1. At create_task / update_task entry, if `tags` was provided:
-   a. Call `/v3/tags/list` once per handler invocation and build a label→id map (case-insensitive).
-   b. For each requested label, reuse the existing Tag if found; otherwise call `/v3/tags/create` with `{ name: label }` and capture the new ID.
-   c. Replace `body.tags` with the resolved `[tagId, ...]` array before POSTing to `/v3/tasks/create` (or `/update`).
-2. Rate-limit budget per call with tags: 10 (list) + 1 per missing tag (create) + 1 (task create/update). Cache the label→id map in-process for the duration of the handler only — do not persist across calls (tag state can change server-side).
-3. Keep the MCP-facing schema as `{ type: "array", items: { type: "string" } }` with a description clarifying "human-readable labels; auto-created on first use".
+1. At create_task / update_task / event_to_task entry, if `tags` was provided:
+   a. `src/tags.js` calls `/v3/tags/list` once per handler invocation and builds a label→id map (case-insensitive).
+   b. For each requested label, the resolver reuses an existing Tag if found; otherwise calls `/v3/tags/create` with `{ name: label }` and captures the new ID.
+   c. `body.tags` is replaced with the resolved `[tagId, ...]` array before POSTing to `/v3/tasks/create` or `/v3/tasks/update`.
+2. Rate-limit cost per call with tags: 10 (list) + 1 per missing tag (create) + 1 (task create/update). The label→id map is in-memory per handler invocation only — not persisted across calls because tag state can change server-side.
+3. MCP-facing schema is `{ type: "array", items: { type: "string" }, maxItems: 50 }` with the description "human-readable labels; auto-created on first use". Strict input validation via `validateTagLabels` in `src/tags.js`.
 
 ## Events (`/v3/events/...`)
 
 Source: https://docs.morgen.so/events
 
-### Recurrence — `recurrenceRules`, array of STRUCTURED OBJECTS (not RFC 5545 RRULE strings)
-Verbatim example:
+### Recurrence — `recurrenceRules`, array of STRUCTURED OBJECTS (JSCalendar RFC 8984 §4.3.3, not RFC 5545 RRULE strings)
+Morgen's events API accepts JSCalendar `RecurrenceRule` objects from RFC 8984. The docs example shows only a tiny subset — the full object graph is documented below based on RFC 8984 + verification against live calls.
+
+Verbatim doc example:
 ```json
 "recurrenceRules": [{
   "@type": "RecurrenceRule",
@@ -107,6 +109,85 @@ Verbatim example:
   "byDay": [{ "@type": "NDay", "day": "mo" }]
 }]
 ```
+
+**Full `RecurrenceRule` object fields** (all optional unless marked):
+
+| Field | Type | Notes |
+|---|---|---|
+| `@type` | `"RecurrenceRule"` | **required literal** |
+| `frequency` | string enum | **required**. One of: `yearly`, `monthly`, `weekly`, `daily`, `hourly`, `minutely`, `secondly` |
+| `interval` | positive integer | defaults to `1`. "Every N units of `frequency`" |
+| `byDay` | array of `NDay` objects | day-of-week filter. See `NDay` below |
+| `byMonthDay` | array of integers | day-of-month filter (1-31, or -1 to -31 for "last Nth") |
+| `byMonth` | array of strings | month filter (`"1"` to `"12"` as strings, not ints) |
+| `byYearDay` | array of integers | day-of-year filter (1-366, or negative for "from end") |
+| `byWeekNo` | array of integers | ISO week number filter |
+| `byHour` | array of integers | hour-of-day filter (0-23) |
+| `byMinute` | array of integers | minute filter (0-59) |
+| `bySecond` | array of integers | second filter (0-59) |
+| `bySetPosition` | array of integers | nth occurrence selector after byDay/byMonth/etc. filter is applied |
+| `count` | positive integer | total occurrences. **Mutually exclusive with `until`** |
+| `until` | LocalDateTime | stop date. **Mutually exclusive with `count`** |
+| `skip` | string | `"omit"` (default), `"backward"`, or `"forward"` |
+| `firstDayOfWeek` | string | `"mo"` (default), `"su"`, etc. — affects weekly-frequency week boundaries |
+| `rscale` | string | calendar system — default `"gregorian"`, rarely changed |
+
+**`NDay` object** (inside `byDay`):
+```json
+{ "@type": "NDay", "day": "mo", "nthOfPeriod": 1 }
+```
+- `@type`: `"NDay"` literal
+- `day`: two-char day code — `mo`, `tu`, `we`, `th`, `fr`, `sa`, `su`
+- `nthOfPeriod` (optional): non-zero integer. `1` = first, `2` = second, `-1` = last. Used for "first monday of month" / "last friday of month" patterns.
+
+**Common patterns:**
+
+Every monday at recurrence-source time:
+```json
+{ "@type": "RecurrenceRule", "frequency": "weekly", "interval": 1,
+  "byDay": [{ "@type": "NDay", "day": "mo" }] }
+```
+
+Weekdays (every mon-fri):
+```json
+{ "@type": "RecurrenceRule", "frequency": "weekly", "interval": 1,
+  "byDay": [
+    { "@type": "NDay", "day": "mo" }, { "@type": "NDay", "day": "tu" },
+    { "@type": "NDay", "day": "we" }, { "@type": "NDay", "day": "th" },
+    { "@type": "NDay", "day": "fr" }
+  ] }
+```
+
+First monday of every month:
+```json
+{ "@type": "RecurrenceRule", "frequency": "monthly", "interval": 1,
+  "byDay": [{ "@type": "NDay", "day": "mo", "nthOfPeriod": 1 }] }
+```
+
+Last friday of every month:
+```json
+{ "@type": "RecurrenceRule", "frequency": "monthly", "interval": 1,
+  "byDay": [{ "@type": "NDay", "day": "fr", "nthOfPeriod": -1 }] }
+```
+
+Every 2 weeks (biweekly):
+```json
+{ "@type": "RecurrenceRule", "frequency": "weekly", "interval": 2 }
+```
+
+For 10 occurrences only:
+```json
+{ "@type": "RecurrenceRule", "frequency": "daily", "interval": 1, "count": 10 }
+```
+
+Until a specific date:
+```json
+{ "@type": "RecurrenceRule", "frequency": "weekly", "interval": 1,
+  "until": "2026-12-31T23:59:59" }
+```
+
+### NL recurrence helper (v0.1.6)
+The `nl-recurrence.js` module translates natural-language strings into the structured objects above. `create_event` and `update_event` accept either a `string` OR an `array` for `recurrence_rules`. Supported phrases include: `daily`, `every day`, `weekly`, `every monday`, `every tuesday and thursday`, `weekdays`, `weekends`, `biweekly` / `every other week`, `every 3 weeks`, `monthly`, `first monday of every month`, `last friday of every month`, `every 2 months`, `yearly`, `annually`. Patterns that can't be represented cleanly in JSCalendar (e.g. "every 4th tuesday of each quarter", "every weekday except wednesday") throw a clear error listing supported patterns instead of silently doing the wrong thing.
 
 ### `seriesUpdateMode`
 - Query parameter (not body field).
