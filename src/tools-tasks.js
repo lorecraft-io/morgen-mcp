@@ -1,5 +1,15 @@
 // Morgen task tools — native Morgen tasks only (integrationId: "morgen").
 // Tasks synced from external providers (Todoist, etc.) are NOT writable via /v3/tasks endpoints.
+//
+// v0.1.4 notes:
+//   - Morgen's /v3/tasks/create response only echoes { data: { id } } — it does
+//     NOT return the full task object. We synthesize the create/update return
+//     shape from the request body + returned ID. Call list_tasks afterwards
+//     for server-authoritative state.
+//   - The `tags` field was temporarily removed from create_task + update_task
+//     because Morgen rejects string-array tags with HTTP 400. The correct
+//     wire shape is still unknown (docs just say "Array"). Will reintroduce
+//     in v0.1.5 once the shape is confirmed against a live doc example.
 import { morgenFetch } from "./client.js";
 import { validateId, validateISODate, validateIntegerRange } from "./validation.js";
 
@@ -10,8 +20,6 @@ const PRIORITY_MAX = 9;
 
 const MAX_TITLE_LENGTH = 500;
 const MAX_DESCRIPTION_LENGTH = 5000;
-const MAX_TAGS = 50;
-const MAX_TAG_LENGTH = 100;
 
 const DESCRIPTION_CONTENT_TYPES = ["text/plain", "text/html"];
 
@@ -22,21 +30,6 @@ function validateIsoDuration(value, field = "estimated_duration") {
     throw new Error(
       `${field} must be an ISO 8601 duration string (e.g. 'PT30M', 'PT1H', 'PT2H30M')`
     );
-  }
-  return value;
-}
-
-function validateTaskTags(value, field = "tags") {
-  if (!Array.isArray(value)) {
-    throw new Error(`${field} must be an array of strings`);
-  }
-  if (value.length > MAX_TAGS) {
-    throw new Error(`${field} exceeds maximum of ${MAX_TAGS} tags`);
-  }
-  for (const tag of value) {
-    if (typeof tag !== "string" || tag.length === 0 || tag.length > MAX_TAG_LENGTH) {
-      throw new Error(`${field} entries must be non-empty strings under ${MAX_TAG_LENGTH} chars`);
-    }
   }
   return value;
 }
@@ -104,6 +97,35 @@ function shapeTaskList(raw) {
   return { count: tasks.length, tasks };
 }
 
+// Synthesize a task-shaped return value from the request body + the id the
+// server echoed. Morgen's /v3/tasks/create response is { data: { id } } only —
+// it does not contain the full task. Same for /v3/tasks/update. This gives
+// callers an immediately-usable return shape without a follow-up list_tasks
+// round-trip; fields reflect what the client SENT, not a re-fetch, so for
+// true server state (after Morgen applies defaults), call list_tasks.
+function synthesizeTaskFromBody(body, serverResponse, { isCreate = false } = {}) {
+  const extractedId =
+    serverResponse?.data?.id ??
+    serverResponse?.data?.task?.id ??
+    serverResponse?.id ??
+    body.id ??
+    null;
+  return {
+    id: extractedId,
+    title: body.title ?? null,
+    description: body.description ?? null,
+    due: body.due ?? null,
+    priority: typeof body.priority === "number" ? body.priority : null,
+    taskListId: body.taskListId ?? null,
+    estimatedDuration: body.estimatedDuration ?? null,
+    timeZone: body.timeZone ?? null,
+    descriptionContentType: body.descriptionContentType ?? null,
+    integrationId: "morgen",
+    synthesized: true,
+    created: isCreate,
+  };
+}
+
 export const TASK_TOOLS = [
   {
     name: "list_tasks",
@@ -154,11 +176,6 @@ export const TASK_TOOLS = [
           type: "string",
           description: "Optional IANA timezone (e.g. 'America/New_York') that applies to the task's due time.",
         },
-        tags: {
-          type: "array",
-          items: { type: "string" },
-          description: "Optional array of tag strings. Max 50 tags, 100 chars each.",
-        },
         description_content_type: {
           type: "string",
           enum: DESCRIPTION_CONTENT_TYPES,
@@ -204,11 +221,6 @@ export const TASK_TOOLS = [
         timezone: {
           type: "string",
           description: "IANA timezone for the due date.",
-        },
-        tags: {
-          type: "array",
-          items: { type: "string" },
-          description: "Replacement tag array.",
         },
         description_content_type: {
           type: "string",
@@ -309,9 +321,6 @@ export const taskHandlers = {
     if (args.estimated_duration !== undefined && args.estimated_duration !== null) {
       validateIsoDuration(args.estimated_duration, "estimated_duration");
     }
-    if (args.tags !== undefined && args.tags !== null) {
-      validateTaskTags(args.tags);
-    }
     if (args.description_content_type !== undefined && args.description_content_type !== null) {
       if (!DESCRIPTION_CONTENT_TYPES.includes(args.description_content_type)) {
         throw new Error(`description_content_type must be one of: ${DESCRIPTION_CONTENT_TYPES.join(", ")}`);
@@ -325,7 +334,6 @@ export const taskHandlers = {
     if (taskListId) body.taskListId = taskListId;
     if (args.estimated_duration) body.estimatedDuration = args.estimated_duration;
     if (args.timezone) body.timeZone = args.timezone;
-    if (args.tags) body.tags = args.tags;
     if (args.description_content_type) body.descriptionContentType = args.description_content_type;
 
     const response = await morgenFetch("/v3/tasks/create", {
@@ -333,7 +341,7 @@ export const taskHandlers = {
       body,
       points: 1,
     });
-    return shapeTask(response);
+    return synthesizeTaskFromBody(body, response, { isCreate: true });
   },
 
   update_task: async (args = {}) => {
@@ -355,9 +363,6 @@ export const taskHandlers = {
     if (args.estimated_duration !== undefined && args.estimated_duration !== null) {
       validateIsoDuration(args.estimated_duration, "estimated_duration");
     }
-    if (args.tags !== undefined && args.tags !== null) {
-      validateTaskTags(args.tags);
-    }
     if (args.description_content_type !== undefined && args.description_content_type !== null) {
       if (!DESCRIPTION_CONTENT_TYPES.includes(args.description_content_type)) {
         throw new Error(`description_content_type must be one of: ${DESCRIPTION_CONTENT_TYPES.join(", ")}`);
@@ -371,7 +376,6 @@ export const taskHandlers = {
     if (args.priority !== undefined && args.priority !== null) body.priority = args.priority;
     if (args.estimated_duration) body.estimatedDuration = args.estimated_duration;
     if (args.timezone) body.timeZone = args.timezone;
-    if (args.tags) body.tags = args.tags;
     if (args.description_content_type) body.descriptionContentType = args.description_content_type;
 
     if (Object.keys(body).length === 1) {
@@ -383,7 +387,7 @@ export const taskHandlers = {
       body,
       points: 1,
     });
-    return shapeTask(response);
+    return synthesizeTaskFromBody(body, response, { isCreate: false });
   },
 
   move_task: async (args = {}) => {

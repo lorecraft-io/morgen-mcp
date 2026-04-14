@@ -26,13 +26,14 @@ if (!process.env.MORGEN_API_KEY) {
 // Import tool definitions and handlers from sibling modules
 import { EVENT_TOOLS, eventHandlers } from "./tools-events.js";
 import { TASK_TOOLS, taskHandlers } from "./tools-tasks.js";
+import { REFLOW_TOOLS, reflowHandlers } from "./tools-reflow.js";
 
-const TOOLS = [...EVENT_TOOLS, ...TASK_TOOLS];
-const HANDLERS = { ...eventHandlers, ...taskHandlers };
+const TOOLS = [...EVENT_TOOLS, ...TASK_TOOLS, ...REFLOW_TOOLS];
+const HANDLERS = { ...eventHandlers, ...taskHandlers, ...reflowHandlers };
 
 // Server setup
 const server = new Server(
-  { name: "morgen", version: "0.1.3" },
+  { name: "morgen", version: "0.1.4" },
   { capabilities: { tools: {} } }
 );
 

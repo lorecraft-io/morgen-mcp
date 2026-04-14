@@ -35,6 +35,20 @@ Source: https://docs.morgen.so/tasks
 
 Note: `created`/`updated` timestamps (not `createdAt`/`updatedAt`). No `completed` boolean — status is represented via `progress` (String).
 
+### /v3/tasks/create response shape — echoes ONLY the ID
+Verified live 2026-04-14 against the published API. The `POST /v3/tasks/create` endpoint returns:
+```json
+{ "data": { "id": "<uuid>" } }
+```
+It does **not** echo the full task object. To read back the created task with Morgen's server-side defaults applied (priority, progress, position, created/updated), call `/v3/tasks/list` and filter by the returned ID. The same applies to `/v3/tasks/update`.
+
+### `tags` field — wire shape UNKNOWN
+The Morgen docs list `tags (Array)` on the full task object but do **not** specify the entry shape. Sending `tags: ["string", "string"]` as a raw string array to `/v3/tasks/create` is rejected with HTTP 400 (verified 2026-04-14). Likely candidates, not yet tested:
+- `tags: { "tag-name": { "@type": "Tag", "name": "..." } }` — keyed map à la participants/locations
+- `tags: [{ "@type": "Tag", "name": "..." }]` — array of structured objects
+
+**Action:** tags was temporarily removed from `create_task` + `update_task` in morgen-mcp v0.1.4 until the shape is confirmed against a live doc example or a `/v3/tasks/list` response that contains non-empty tags. Reintroduce in v0.1.5.
+
 ## Events (`/v3/events/...`)
 
 Source: https://docs.morgen.so/events
