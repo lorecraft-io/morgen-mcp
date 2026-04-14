@@ -1,12 +1,12 @@
 # morgen-mcp Architecture
 
-Current as of v0.1.6 (2026-04-14).
+Current as of v0.1.7 (2026-04-14).
 
 ## File Size Audit (500-line project limit)
 
 | File                                      | Lines | Status |
 |-------------------------------------------|------:|--------|
-| src/validation.js                         |    47 | OK     |
+| src/validation.js                         |    63 | OK     |
 | src/tags.js                               |    89 | OK (NEW in v0.1.5) |
 | src/index.js                              |   137 | OK     |
 | src/client.js                             |   141 | OK     |
@@ -18,7 +18,7 @@ Current as of v0.1.6 (2026-04-14).
 | src/tools-events-schema.js                |   278 | OK     |
 | src/tools-reflow.js                       |   436 | OK (NEW in v0.1.4) |
 | src/tools-events.js                       |   461 | OK     |
-| src/tools-tasks.js                        |   489 | OK (within 11 of cap — v0.1.7 will split schema) |
+| src/tools-tasks.js                        |   489 | OK (within 11 of cap — next task feature requires tools-tasks-schema.js split) |
 | bin/setup.js                              |    96 | OK     |
 | tests/ (15 files)                         |  ~3.5k | test suite, informational |
 
@@ -94,7 +94,7 @@ No circular imports. `index.js` depends on the two `tools-*` modules. `tools-eve
 
 - `index.js` — MCP stdio transport, env bootstrap, tool dispatch, URL-redacting error sanitization, and (v0.1.6) structured-metadata preservation on partial-failure errors (`err.reflow` / `err.conversion` surfaced in both stderr log and content payload).
 - `client.js` — HTTP wrapper (`morgenFetch`): 30s timeout, 3x retry on 429/503/network, rolling 100-point-per-15-minute rate limiter with accurate wait-time calculation, API key scrubbing in thrown errors.
-- `validation.js` — pure input validators. No rate-limit logic (the canonical limiter lives in `client.js`).
+- `validation.js` — pure input validators and format normalizers. No rate-limit logic (the canonical limiter lives in `client.js`). v0.1.7 adds `toFloatingDateTime()` — strips offset/Z from resolved datetime strings before they reach Morgen's task endpoints, which require JSCalendar floating local datetimes.
 - `tools-events-schema.js` — pure JSON Schema definitions for the six `EVENT_TOOLS` entries, zero runtime behavior.
 - `tools-events.js` — event handler implementations; composes the schema module, shape helpers, the calendar cache, the v0.1.3 smart account router, and (v0.1.6) the NL date and recurrence parsers.
 - `events-shape.js` — pure helpers: response unwrappers (`data.data.*`), `mapCalendar`, `mapEvent`, `toParticipantMap`, `toLocationMap`, `validateRecurrenceRules`.
@@ -142,4 +142,5 @@ Every request body and response parser is aligned with the verified Morgen API s
 - `create_event` smart routing — requests that omit `calendar_id` auto-route to the right account based on participant domains (`@parzvl.com` → parzvl, `@bloomit.ai` → bloom) and title keywords, with `nate@lorecraft.io` as default. Override with explicit `account: "parzvl" | "bloom" | "lorecraft"` — NEW in v0.1.3.
 - Task `tags` on the wire are an array of Morgen tag UUIDs, not label strings. The MCP accepts human-readable labels at the surface and resolves them to UUIDs via `tags.js` → `/v3/tags/list` + `/v3/tags/create` — NEW in v0.1.5 (after v0.1.4 discovered Morgen rejects string-array tags with HTTP 400).
 - `/v3/tasks/create` and `/v3/tasks/update` responses echo only `{ data: { id } }` — the MCP synthesizes a usable return shape from the request body + returned ID via `synthesizeTaskFromBody` — NEW in v0.1.4.
+- Task `due` field uses JSCalendar floating local datetimes (RFC 8984 §3.3): no timezone offset, no `Z` suffix. Offset-aware strings (`2026-04-14T00:00:00-04:00`, `2026-04-14T23:59:00Z`) are rejected with HTTP 400. The `toFloatingDateTime()` helper in `validation.js` strips any trailing offset/Z before the body is POSTed — NEW in v0.1.7 (confirmed by live 400s in the field).
 - **Task-to-calendar scheduling is NOT exposed by the public API.** The `morgen.so:metadata.taskId` linkage the Morgen web app drag-to-schedule uses is private. See `docs/MORGEN-API-NOTES.md` "Task-to-calendar scheduling" section for the full list of probed endpoints and rejection reasons. A feature request was filed with Morgen support on 2026-04-14 asking them to expose it publicly — confirmed NEW in v0.1.5 investigation.

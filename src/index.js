@@ -44,7 +44,7 @@ const HANDLERS = {
 
 // Server setup
 const server = new Server(
-  { name: "morgen", version: "0.1.6" },
+  { name: "morgen", version: "0.1.7" },
   { capabilities: { tools: {} } }
 );
 

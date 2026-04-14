@@ -16,7 +16,7 @@
 //     tag (tags/create) + 1 (task create/update). Document this cost to the
 //     caller so they know it's more expensive than a plain create.
 import { morgenFetch } from "./client.js";
-import { validateId, validateISODate, validateIntegerRange } from "./validation.js";
+import { validateId, validateISODate, validateIntegerRange, toFloatingDateTime } from "./validation.js";
 import { resolveTagLabelsToIds, validateTagLabels } from "./tags.js";
 import { resolveDateTimeInput } from "./nl-date-parser.js";
 
@@ -373,7 +373,7 @@ export const taskHandlers = {
 
     const body = { title };
     if (description !== undefined) body.description = description;
-    if (args.due) body.due = args.due;
+    if (args.due) body.due = toFloatingDateTime(args.due);
     if (args.priority !== undefined && args.priority !== null) body.priority = args.priority;
     if (taskListId) body.taskListId = taskListId;
     if (args.estimated_duration) body.estimatedDuration = args.estimated_duration;
@@ -427,7 +427,7 @@ export const taskHandlers = {
     const body = { id };
     if (title !== undefined) body.title = title;
     if (description !== undefined) body.description = description;
-    if (args.due !== undefined && args.due !== null) body.due = args.due;
+    if (args.due !== undefined && args.due !== null) body.due = toFloatingDateTime(args.due);
     if (args.priority !== undefined && args.priority !== null) body.priority = args.priority;
     if (args.estimated_duration) body.estimatedDuration = args.estimated_duration;
     if (args.timezone) body.timeZone = args.timezone;
