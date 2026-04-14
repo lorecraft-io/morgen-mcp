@@ -1,27 +1,35 @@
 # morgen-mcp Architecture
 
-Current as of v0.1.2 (2026-04-13).
+Current as of v0.1.6 (2026-04-14).
 
 ## File Size Audit (500-line project limit)
 
 | File                                      | Lines | Status |
 |-------------------------------------------|------:|--------|
-| src/index.js                              |   101 | OK     |
-| src/client.js                             |   141 | OK     |
 | src/validation.js                         |    47 | OK     |
-| src/tools-events.js                       |   357 | OK     |
-| src/tools-events-schema.js                |   181 | OK     |
-| src/events-shape.js                       |   177 | OK     |
-| src/calendar-cache.js                     |   132 | OK     |
-| src/tools-tasks.js                        |   333 | OK     |
+| src/tags.js                               |    89 | OK (NEW in v0.1.5) |
+| src/index.js                              |   137 | OK     |
+| src/client.js                             |   141 | OK     |
+| src/events-shape.js                       |   189 | OK     |
+| src/nl-date-parser.js                     |   190 | OK (NEW in v0.1.6) |
+| src/tools-conversions.js                  |   192 | OK (NEW in v0.1.5) |
+| src/calendar-cache.js                     |   202 | OK     |
+| src/nl-recurrence.js                      |   212 | OK (NEW in v0.1.6) |
+| src/tools-events-schema.js                |   278 | OK     |
+| src/tools-reflow.js                       |   436 | OK (NEW in v0.1.4) |
+| src/tools-events.js                       |   461 | OK     |
+| src/tools-tasks.js                        |   489 | OK (within 11 of cap — v0.1.7 will split schema) |
 | bin/setup.js                              |    96 | OK     |
-| tests/client.test.js                      |   234 | test suite, informational |
-| tests/validation.test.js                  |   254 | test suite, informational |
-| tests/security-errors.test.js             |   304 | test suite, informational |
-| tests/security-input-content.test.js      |   255 | test suite, informational |
-| tests/security-input-traversal.test.js    |   200 | test suite, informational |
+| tests/ (15 files)                         |  ~3.5k | test suite, informational |
 
-All production files under the 500-line limit. `tools-events.js` was further trimmed in v0.1.2 by extracting `tools-events-schema.js` (pure JSON Schema definitions for the 6 event tools) and `calendar-cache.js` (in-memory default-calendar resolver), keeping each module single-purpose and well under budget. The security test suite was split from one monolithic file into three category-scoped files to keep each file readable.
+All production files under the 500-line limit. Modules were split progressively across v0.1.2 → v0.1.6 to keep each one single-purpose:
+
+- **v0.1.2** extracted `tools-events-schema.js` (JSON Schema defs) and `calendar-cache.js` (default-calendar resolver) from `tools-events.js`, and split the security test suite into three category-scoped files.
+- **v0.1.4** added `tools-reflow.js` for the new `reflow_day` tool so the existing event module stayed focused on raw CRUD.
+- **v0.1.5** extracted `tags.js` (label → UUID resolver, shared helper) out of `tools-tasks.js` to keep the task module under the 500-line cap after tags were re-enabled, and added `tools-conversions.js` for the `event_to_task` soft-conversion tool.
+- **v0.1.6** added `nl-date-parser.js` (chrono-node wrapper) and `nl-recurrence.js` (natural-language recurrence helper) as pure client-side helpers shared across every tool that takes a date/time or recurrence input.
+
+`tools-tasks.js` sits at 489/500 — the next task feature forces a `tools-tasks-schema.js` split following the same pattern as `tools-events-schema.js`.
 
 ## Dependency Graph
 
@@ -78,18 +86,25 @@ No circular imports. `index.js` depends on the two `tools-*` modules. `tools-eve
 
 - `EVENT_TOOLS` — 6 (`list_calendars`, `list_events`, `create_event`, `update_event`, `delete_event`, `rsvp_event`), defined in `src/tools-events-schema.js`
 - `TASK_TOOLS` — 7 (`list_tasks`, `create_task`, `update_task`, `move_task`, `close_task`, `reopen_task`, `delete_task`), defined in `src/tools-tasks.js`
-- Total registered via `src/index.js`: **13**
+- `REFLOW_TOOLS` — 1 (`reflow_day`), defined in `src/tools-reflow.js` (NEW in v0.1.4)
+- `CONVERSION_TOOLS` — 1 (`event_to_task`), defined in `src/tools-conversions.js` (NEW in v0.1.5)
+- Total registered via `src/index.js`: **15**
 
 ## Separation of Concerns
 
-- `index.js` — MCP stdio transport, env bootstrap, tool dispatch, URL-redacting error sanitization.
+- `index.js` — MCP stdio transport, env bootstrap, tool dispatch, URL-redacting error sanitization, and (v0.1.6) structured-metadata preservation on partial-failure errors (`err.reflow` / `err.conversion` surfaced in both stderr log and content payload).
 - `client.js` — HTTP wrapper (`morgenFetch`): 30s timeout, 3x retry on 429/503/network, rolling 100-point-per-15-minute rate limiter with accurate wait-time calculation, API key scrubbing in thrown errors.
 - `validation.js` — pure input validators. No rate-limit logic (the canonical limiter lives in `client.js`).
 - `tools-events-schema.js` — pure JSON Schema definitions for the six `EVENT_TOOLS` entries, zero runtime behavior.
-- `tools-events.js` — event handler implementations; composes the schema module, shape helpers, and the calendar cache.
+- `tools-events.js` — event handler implementations; composes the schema module, shape helpers, the calendar cache, the v0.1.3 smart account router, and (v0.1.6) the NL date and recurrence parsers.
 - `events-shape.js` — pure helpers: response unwrappers (`data.data.*`), `mapCalendar`, `mapEvent`, `toParticipantMap`, `toLocationMap`, `validateRecurrenceRules`.
-- `calendar-cache.js` — 10-minute in-memory cache for `list_calendars` results so `create_event`/`update_event` calls that omit `calendar_id` don't spend 10 rate points per call.
-- `tools-tasks.js` — task tool schemas + handlers. Priority is validated as integer 0-9 per the Morgen spec, not as a string enum.
+- `calendar-cache.js` — 10-minute in-memory cache for `list_calendars` results so `create_event`/`update_event` calls that omit `calendar_id` don't spend 10 rate points per call. Also exposes `resolveSelfEmail` (fallback chain: `MORGEN_SELF_EMAIL` env → email-shaped calendar name → throw) used by `rsvp_event` and `reflow_day` solo-block detection.
+- `tools-tasks.js` — task tool schemas + handlers. Priority validated as integer 0-9 per the Morgen spec. Tags accepted as human-readable label strings and resolved to UUIDs via `tags.js` (v0.1.5). `synthesizeTaskFromBody` merges the request body with Morgen's ID-only create/update response so callers get an immediately usable return shape.
+- `tags.js` — (NEW v0.1.5) label → UUID resolver for Morgen's Tag resource. Calls `/v3/tags/list` once per handler invocation, auto-creates any missing labels via `/v3/tags/create`, case-insensitive match, input deduplication. Cost: 10 pts (list) + 1 pt per new tag.
+- `tools-reflow.js` — (NEW v0.1.4) `reflow_day` tool: compresses same-day events back-to-back from an anchor time, with `dry_run: true` default, `protect_fixed` auto-filter for solo blocks (v0.1.6 fix: only runs when `protect_fixed === true`), explicit `event_ids` override capped at 50, and partial-failure recovery via `err.reflow = { applied, pending, failed_at }`.
+- `tools-conversions.js` — (NEW v0.1.5) `event_to_task` soft-conversion tool. Bundles `create_task` + `delete_event` into one call. Partial-failure recovery via `err.conversion = { task_id, source_event_id, deleted, error }`.
+- `nl-date-parser.js` — (NEW v0.1.6) chrono-node-backed natural-language date/time parser. Exports `resolveDateTimeInput`, `resolveDateInput`, `resolveTimeInput` with ISO 8601 fast-path. DST-safe two-pass `resolveWallClockInZone` algorithm. Applied uniformly to every tool that accepts a date/time field.
+- `nl-recurrence.js` — (NEW v0.1.6) natural-language → Morgen `RecurrenceRule` array helper. Handles "every monday", "weekdays", "first friday of every month", "biweekly", etc. Pass-through for existing array input. Wired into `create_event` + `update_event`.
 - `bin/setup.js` — interactive first-run script that writes `MORGEN_API_KEY` into a local `.env` file.
 
 ## Consistency with motion-calendar-mcp
@@ -118,8 +133,13 @@ Every request body and response parser is aligned with the verified Morgen API s
 - Calendar objects: `readOnly` is derived from `myRights` (no `isPrimary`/`isReadOnly`/`timezone` fields on the wire).
 - Event `participants` submitted as a keyed map `{ <email>: { "@type": "Participant", email, roles, participationStatus } }`.
 - Event `locations` (plural) submitted as a keyed map with `{ "@type": "Location", name, ... }` entries — NEW in v0.1.2.
-- Event `recurrenceRules` submitted as structured objects, not RFC 5545 RRULE strings.
+- Event `recurrenceRules` submitted as structured objects, not RFC 5545 RRULE strings. v0.1.6 additionally accepts natural-language strings via `nl-recurrence.js` which translate into the same structured shape before POST.
 - Event `seriesUpdateMode` sent as a query parameter on update/delete, not as a body field.
 - `create_event` and `update_event` must send all four timing fields together (`start`, `duration`, `timeZone`, `showWithoutTime`); omitting `timeZone` is rejected by the API — NEW in v0.1.2.
 - Task priority is integer 0-9 (0 = undefined, 1 = highest, 9 = lowest); task list field is `taskListId` (not `listId`); task timestamps use `created`/`updated` (not `createdAt`/`updatedAt`).
 - `move_task` is implemented against `POST /v3/tasks/update` with a new `taskListId` in the body; there is no `/v3/tasks/move` endpoint — NEW in v0.1.2.
+- `rsvp_event` — Morgen has NO dedicated RSVP endpoint. `/v3/events/accept`, `/decline`, `/tentative` DO NOT EXIST. RSVP is implemented by PATCHing the participants map via `POST /v3/events/update` with past-tense `participationStatus` values — NEW in v0.1.3.
+- `create_event` smart routing — requests that omit `calendar_id` auto-route to the right account based on participant domains (`@parzvl.com` → parzvl, `@bloomit.ai` → bloom) and title keywords, with `nate@lorecraft.io` as default. Override with explicit `account: "parzvl" | "bloom" | "lorecraft"` — NEW in v0.1.3.
+- Task `tags` on the wire are an array of Morgen tag UUIDs, not label strings. The MCP accepts human-readable labels at the surface and resolves them to UUIDs via `tags.js` → `/v3/tags/list` + `/v3/tags/create` — NEW in v0.1.5 (after v0.1.4 discovered Morgen rejects string-array tags with HTTP 400).
+- `/v3/tasks/create` and `/v3/tasks/update` responses echo only `{ data: { id } }` — the MCP synthesizes a usable return shape from the request body + returned ID via `synthesizeTaskFromBody` — NEW in v0.1.4.
+- **Task-to-calendar scheduling is NOT exposed by the public API.** The `morgen.so:metadata.taskId` linkage the Morgen web app drag-to-schedule uses is private. See `docs/MORGEN-API-NOTES.md` "Task-to-calendar scheduling" section for the full list of probed endpoints and rejection reasons. A feature request was filed with Morgen support on 2026-04-14 asking them to expose it publicly — confirmed NEW in v0.1.5 investigation.

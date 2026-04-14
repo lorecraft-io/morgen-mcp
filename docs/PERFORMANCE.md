@@ -1,6 +1,6 @@
 # morgen-mcp Performance Notes
 
-Current as of v0.1.2 (2026-04-13). Reference: https://docs.morgen.so/rate-limits
+Current as of v0.1.6 (2026-04-14). Reference: https://docs.morgen.so/rate-limits
 
 ## Morgen Rate Limit Budget
 
@@ -47,10 +47,26 @@ Test code can reset the cache via `_resetCalendarCache()` (`src/calendar-cache.j
 
 | Handler                                                     | Points |
 |-------------------------------------------------------------|-------:|
-| `list_calendars`, `list_events`, `list_tasks`               |     10 |
+| `list_calendars`, `list_events`, `list_tasks`, `list_tags`  |     10 |
 | All create / update / delete / move / close / reopen / rsvp |      1 |
+| `create_task` / `update_task` WITH tags (new labels)        | 11 + N (N = new tag creates) |
+| `create_task` / `update_task` WITH tags (all existing)      |     11 |
+| `reflow_day` dry-run (single calendar)                      |     10 |
+| `reflow_day` apply (single calendar, 5 event moves)         |     15 |
+| `event_to_task`                                             |      2 |
+| `event_to_task` WITH tags (new labels)                      | 12 + N |
 
 All handler call sites pass `points` explicitly to `morgenFetch`.
+
+## Post-v0.1.2 cost patterns
+
+**v0.1.4 `reflow_day` (client-side compression)** — fetches events once (10 pts) then issues one `POST /v3/events/update` per reflowable step. For Nathan's typical 4-5 focus blocks, that's 14-15 pts per apply call. Capped at **50 event_ids** (v0.1.5) to keep a pathological call under the 100-pt budget. On mid-loop failure, the tool throws a structured error with `applied_steps` / `pending_steps` so the caller can recover manually instead of re-running blind.
+
+**v0.1.5 `tags` label resolver** — every `create_task` / `update_task` / `event_to_task` call that passes tag labels fans out to `/v3/tags/list` (10 pts) plus `/v3/tags/create` per missing tag (1 pt each). Worst case with 10 brand-new labels on one task: 10 + 10 + 1 = **21 pts** in a single create. Document this cost to the caller when they chain many tagged creates — a bulk Notion → Morgen import of 20 tasks with 3 new tags each burns 20 × 13 = 260 pts, well over the 100-pt window. Callers should batch-precreate tags once, or parallelize across the window.
+
+**v0.1.6 natural-language parsing** — pure client-side, zero additional rate-limit cost. `chrono-node` runs in-process, and `nl-recurrence.js` is a plain string-to-object transform. The only Morgen API calls in v0.1.6's NL path are the same ones that would have happened with raw ISO inputs.
+
+**v0.1.6 structured-error preservation** — `src/index.js` now detects `err.reflow` / `err.conversion` on thrown errors and embeds them in both the stderr log and the user-facing content payload. No additional API cost; observability improvement only.
 
 ## Observability
 
@@ -58,8 +74,11 @@ All handler call sites pass `points` explicitly to `morgenFetch`.
   `{ event: "tool_call", tool, status: "success" | "error", durationMs, error? }`
 - No external observability integration (OpenTelemetry, Sentry, etc.) — acceptable for a local stdio MCP. Claude Code surfaces the stderr logs in its debugger panel.
 
-## Future Optimizations (not required for v0.1.2)
+## Future Optimizations (v0.1.7+)
 
 - Add a pre-flight budget warning when `currentPoints() > 80`, logged to stderr.
 - Optionally cache `list_events` / `list_tasks` responses for 30 seconds to survive bursty AI workflows.
 - Pin cache TTL to an env var (e.g. `MORGEN_CACHE_TTL_MS`) for per-deployment tuning of the 10-minute default.
+- **Parallelize `resolveTagLabelsToIds` tag-create calls** via `Promise.all` — currently serial, so 10 new tags = 10 sequential round-trips (~30s real-time latency). The 1-pt-per-call cost is unchanged, but wall-clock time improves dramatically.
+- **Align `tools-tasks.js` TZ default** with events — currently passes `args.timezone` to the NL parser, which falls back to hardcoded `"America/New_York"` instead of `DEFAULT_TIMEZONE` / `MORGEN_TIMEZONE` env. Fine on Nathan's EST setup, wrong for other timezones.
+- **Atomic server-side reflow** — waiting on Morgen to expose `POST /v3/calendars/reflow` per the 2026-04-14 feature request email. Would replace the sequential client-side loop and eliminate partial-failure state entirely.
