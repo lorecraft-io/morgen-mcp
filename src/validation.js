@@ -45,3 +45,19 @@ export function validateIntegerRange(value, name, min, max) {
   }
   return value;
 }
+
+// Morgen's task `due` field uses JSCalendar floating local datetimes
+// (RFC 8984 §3.3) — no timezone offset, no Z suffix. The IANA timezone
+// is stored separately in the `timeZone` field. Strip any trailing offset
+// (+HH:MM / -HH:MM / Z) and optional milliseconds before POSTing to
+// Morgen's /v3/tasks/create and /v3/tasks/update endpoints, which reject
+// offset-aware strings with HTTP 400.
+//
+// Pass-through for date-only strings (YYYY-MM-DD) and already-floating
+// strings (YYYY-MM-DDTHH:MM:SS) — they have no offset to strip.
+// Pass-through for non-string values (null/undefined) — callers guard
+// before calling this, but safe to be defensive here.
+export function toFloatingDateTime(value) {
+  if (typeof value !== "string") return value;
+  return value.replace(/(\.\d+)?([+-]\d{2}:\d{2}|Z)$/, "");
+}

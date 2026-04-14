@@ -46,6 +46,26 @@ Confirmed 2026-04-14. Morgen's web app has a drag-task-to-calendar feature that 
 
 **Workaround:** create the task via `/v3/tasks/create`, then have the user drag it to a time slot in the Morgen web app. The drag triggers Morgen's private linking endpoint which is not in the public API. File a feature request with Morgen support to expose it.
 
+### `due` field — floating local datetime (JSCalendar RFC 8984 §3.3)
+Confirmed by live testing 2026-04-14. Morgen's task `due` field expects a
+**floating local datetime** string with NO timezone offset and NO `Z` suffix.
+The IANA timezone for interpreting the due date is stored separately in the
+`timeZone` field on the task object.
+
+**Rejected (HTTP 400):**
+- `"2026-04-14T00:00:00-04:00"` — offset-aware (EST)
+- `"2026-04-14T23:59:00.000Z"` — UTC with milliseconds
+
+**Accepted:**
+- `"2026-04-14T00:00:00"` — floating local datetime, no offset
+- `"2026-04-14T23:59:00"` — floating local datetime, no offset
+
+The MCP's `toFloatingDateTime()` helper in `src/validation.js` (added in v0.1.7)
+strips any trailing `+HH:MM`, `-HH:MM`, or `Z` (and optional preceding `.NNN`
+milliseconds) from the resolved datetime before POSTing to `/v3/tasks/create`
+and `/v3/tasks/update`. ISO pass-through and NL-parsed datetimes both run
+through this normalization step.
+
 ### /v3/tasks/create response shape — echoes ONLY the ID
 Verified live 2026-04-14 against the published API. The `POST /v3/tasks/create` endpoint returns:
 ```json

@@ -5,6 +5,7 @@ import {
   validateISODate,
   validateEnum,
   validateStringArray,
+  toFloatingDateTime,
 } from "../src/validation.js";
 
 // ---------------------------------------------------------------------------
@@ -247,6 +248,40 @@ describe("validateStringArray", () => {
   it("accepts arrays at exactly custom maxItems", () => {
     const arr = Array(5).fill("item");
     expect(validateStringArray(arr, "tags", 5)).toHaveLength(5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// toFloatingDateTime
+// ---------------------------------------------------------------------------
+describe("toFloatingDateTime", () => {
+  it("strips -HH:MM offset", () => {
+    expect(toFloatingDateTime("2026-04-14T00:00:00-04:00")).toBe("2026-04-14T00:00:00");
+  });
+
+  it("strips +HH:MM offset", () => {
+    expect(toFloatingDateTime("2026-04-20T17:00:00+05:30")).toBe("2026-04-20T17:00:00");
+  });
+
+  it("strips Z suffix with milliseconds", () => {
+    expect(toFloatingDateTime("2026-04-14T23:59:00.000Z")).toBe("2026-04-14T23:59:00");
+  });
+
+  it("strips Z suffix without milliseconds", () => {
+    expect(toFloatingDateTime("2026-04-14T23:59:00Z")).toBe("2026-04-14T23:59:00");
+  });
+
+  it("passes through already-floating datetime (no offset)", () => {
+    expect(toFloatingDateTime("2026-04-14T14:00:00")).toBe("2026-04-14T14:00:00");
+  });
+
+  it("passes through date-only string unchanged", () => {
+    expect(toFloatingDateTime("2026-04-14")).toBe("2026-04-14");
+  });
+
+  it("passes through non-string values unchanged", () => {
+    expect(toFloatingDateTime(null)).toBeNull();
+    expect(toFloatingDateTime(undefined)).toBeUndefined();
   });
 });
 
