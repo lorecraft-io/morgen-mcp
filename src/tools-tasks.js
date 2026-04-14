@@ -293,7 +293,7 @@ export const taskHandlers = {
   move_task: async (args = {}) => {
     const id = validateId(args.task_id, "task_id");
     const taskListId = validateId(args.task_list_id, "task_list_id");
-    const response = await morgenFetch("/v3/tasks/move", {
+    const response = await morgenFetch("/v3/tasks/update", {
       method: "POST",
       body: { id, taskListId },
       points: 1,

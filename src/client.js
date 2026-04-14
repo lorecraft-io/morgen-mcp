@@ -34,6 +34,11 @@ function msUntilFits(now, incomingPoints) {
 }
 
 function enforceRateLimit(points) {
+  if (points > RATE_LIMIT_POINTS) {
+    throw new Error(
+      `request requires ${points} points but the Morgen rate limit budget is only ${RATE_LIMIT_POINTS} points per 15 minutes`
+    );
+  }
   const now = Date.now();
   pruneLedger(now);
 

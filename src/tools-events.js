@@ -22,7 +22,6 @@ import {
   groupCalendarIdsByAccount,
   resolveCalendarMeta,
   resolveDefaultCalendarMeta,
-  _resetCalendarCache,
 } from "./calendar-cache.js";
 import {
   EVENT_TOOLS,
@@ -69,8 +68,16 @@ function validateRequiredString(value, field, maxLen) {
   validateString(value, field, maxLen);
 }
 
-export function _resetDefaultCalendarCache() {
-  _resetCalendarCache();
+// Morgen represents event locations as a keyed map of Location objects, not a
+// scalar string. Wrap the caller-provided string into the minimum viable shape.
+function toLocationsMap(locationString) {
+  if (!locationString) return undefined;
+  return {
+    [locationString]: {
+      "@type": "Location",
+      name: locationString,
+    },
+  };
 }
 
 // ---------- handlers ----------
@@ -186,7 +193,7 @@ async function handleCreateEvent(args = {}) {
   };
 
   if (args.description !== undefined) body.description = args.description;
-  if (args.location !== undefined) body.location = args.location;
+  if (args.location !== undefined) body.locations = toLocationsMap(args.location);
   if (args.participants !== undefined) {
     body.participants = toParticipantMap(args.participants);
   }
@@ -242,15 +249,20 @@ async function handleUpdateEvent(args = {}) {
     calendarId: calendarMeta.id,
   };
   if (args.title !== undefined) body.title = args.title;
-  if (args.start !== undefined) {
-    body.start = isoUtcToLocal(args.start, timeZone);
+  // Morgen requires the full timing quartet (start, duration, timeZone,
+  // showWithoutTime) whenever any timing field is updated.
+  if (args.start !== undefined || args.end !== undefined) {
+    if (args.start !== undefined) {
+      body.start = isoUtcToLocal(args.start, timeZone);
+    }
     body.timeZone = timeZone;
-  }
-  if (args.start !== undefined && args.end !== undefined) {
-    body.duration = isoDurationFromRange(args.start, args.end);
+    if (args.start !== undefined && args.end !== undefined) {
+      body.duration = isoDurationFromRange(args.start, args.end);
+    }
+    body.showWithoutTime = false;
   }
   if (args.description !== undefined) body.description = args.description;
-  if (args.location !== undefined) body.location = args.location;
+  if (args.location !== undefined) body.locations = toLocationsMap(args.location);
   if (args.participants !== undefined) {
     body.participants = toParticipantMap(args.participants);
   }

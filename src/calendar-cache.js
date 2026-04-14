@@ -9,6 +9,7 @@ const TTL_MS = 10 * 60 * 1000;
 
 let cache = null;
 let expiresAt = 0;
+let loadingPromise = null;
 
 async function loadCache() {
   const raw = await morgenFetch("/v3/calendars/list", { points: 10 });
@@ -45,7 +46,11 @@ async function loadCache() {
 
 export async function getCalendarCache() {
   if (cache && expiresAt > Date.now()) return cache;
-  return loadCache();
+  if (loadingPromise) return loadingPromise;
+  loadingPromise = loadCache().finally(() => {
+    loadingPromise = null;
+  });
+  return loadingPromise;
 }
 
 export async function resolveCalendarMeta(calendarId) {
@@ -93,12 +98,14 @@ export async function getAllAccountsWithCalendars() {
 export function _resetCalendarCache() {
   cache = null;
   expiresAt = 0;
+  loadingPromise = null;
 }
 
 // Test helper: preload the cache with fake entries so handlers can look up
 // calendar metadata without hitting a real API. Entries should be
 // { id, accountId, name?, readOnly?, integrationId?, color? } objects.
 export function _seedCalendarCache(entries) {
+  loadingPromise = null;
   const byId = new Map();
   const byAccount = new Map();
   for (const e of entries) {
