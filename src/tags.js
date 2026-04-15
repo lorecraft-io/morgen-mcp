@@ -44,11 +44,17 @@ export async function resolveTagLabelsToIds(labels) {
   if (!Array.isArray(labels) || labels.length === 0) return [];
 
   const listResponse = await morgenFetch("/v3/tags/list", { points: 10 });
-  const existingTags =
-    listResponse?.data?.tags ??
-    listResponse?.tags ??
-    (Array.isArray(listResponse?.data) ? listResponse.data : []) ??
-    [];
+  // Morgen's /v3/tags/list returns a BARE ARRAY at the top level
+  // (confirmed live 2026-04-15 — see docs/MORGEN-API-NOTES.md). Earlier
+  // versions of this resolver assumed `{ data: { tags: [...] } }`, which
+  // always fell through to the `[]` fallback, silently breaking every
+  // tagged create/update. All observed shapes are handled below.
+  const existingTags = Array.isArray(listResponse)
+    ? listResponse
+    : (listResponse?.data?.tags ??
+       listResponse?.tags ??
+       (Array.isArray(listResponse?.data) ? listResponse.data : []) ??
+       []);
   const byLabel = new Map();
   for (const tag of existingTags) {
     if (tag && typeof tag.name === "string" && typeof tag.id === "string") {
