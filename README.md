@@ -234,12 +234,12 @@ Once installed and configured, just talk to Claude naturally:
 
 ## Rate Limits
 
-Morgen uses a rolling point-based rate limit: **100 points per 15-minute window** per API key.
+Morgen uses a rolling point-based rate limit: **300 points per 15-minute window** per API key (raised from 100 on 2026-04-15).
 
 - List endpoints (`list_events`, `list_tasks`, `list_calendars`) cost **10 points** per call
 - Writes (create, update, delete, close, reopen, rsvp, move) cost **1 point** per call
 
-In practice this is generous for interactive use -- you can fire off dozens of writes in a session without getting near the ceiling. Just avoid tight polling loops on the list endpoints.
+In practice this is very generous for interactive use -- you can fire off hundreds of writes in a session without getting near the ceiling. Just avoid tight polling loops on the list endpoints.
 
 Full details: [docs.morgen.so/rate-limits](https://docs.morgen.so/rate-limits)
 

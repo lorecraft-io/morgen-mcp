@@ -157,28 +157,28 @@ describe("morgenFetch", () => {
   });
 
   describe("rate limiter", () => {
-    it("blocks once 100 points are consumed in the rolling window", async () => {
+    it("blocks once 300 points are consumed in the rolling window", async () => {
       const fetchMock = vi.fn().mockResolvedValue(makeResponse({ body: { ok: true } }));
       vi.stubGlobal("fetch", fetchMock);
 
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 30; i++) {
         await morgenFetch("/v3/calendars/list", { points: 10 });
       }
-      expect(fetchMock).toHaveBeenCalledTimes(10);
+      expect(fetchMock).toHaveBeenCalledTimes(30);
 
       await expect(
         morgenFetch("/v3/calendars/list", { points: 1 })
       ).rejects.toThrow(/rate limit/i);
 
-      // The limiter must throw before the 11th fetch is issued.
-      expect(fetchMock).toHaveBeenCalledTimes(10);
+      // The limiter must throw before the 31st fetch is issued.
+      expect(fetchMock).toHaveBeenCalledTimes(30);
     });
 
     it("allows calls again after the 15-minute window expires", async () => {
       const fetchMock = vi.fn().mockResolvedValue(makeResponse({ body: { ok: true } }));
       vi.stubGlobal("fetch", fetchMock);
 
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 30; i++) {
         await morgenFetch("/v3/calendars/list", { points: 10 });
       }
 
@@ -193,11 +193,11 @@ describe("morgenFetch", () => {
       expect(result).toEqual({ ok: true });
     });
 
-    it("rate limit error message mentions '100 points per 15 minutes'", async () => {
+    it("rate limit error message mentions '300 points per 15 minutes'", async () => {
       const fetchMock = vi.fn().mockResolvedValue(makeResponse({ body: { ok: true } }));
       vi.stubGlobal("fetch", fetchMock);
 
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 30; i++) {
         await morgenFetch("/v3/calendars/list", { points: 10 });
       }
 
@@ -208,7 +208,7 @@ describe("morgenFetch", () => {
         caught = err;
       }
       expect(caught).toBeDefined();
-      expect(caught.message).toContain("100 points per 15 minutes");
+      expect(caught.message).toContain("300 points per 15 minutes");
     });
   });
 

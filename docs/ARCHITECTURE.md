@@ -93,7 +93,7 @@ No circular imports. `index.js` depends on the two `tools-*` modules. `tools-eve
 ## Separation of Concerns
 
 - `index.js` — MCP stdio transport, env bootstrap, tool dispatch, URL-redacting error sanitization, and (v0.1.6) structured-metadata preservation on partial-failure errors (`err.reflow` / `err.conversion` surfaced in both stderr log and content payload).
-- `client.js` — HTTP wrapper (`morgenFetch`): 30s timeout, 3x retry on 429/503/network, rolling 100-point-per-15-minute rate limiter with accurate wait-time calculation, API key scrubbing in thrown errors.
+- `client.js` — HTTP wrapper (`morgenFetch`): 30s timeout, 3x retry on 429/503/network, rolling 300-point-per-15-minute rate limiter (raised from 100 in v0.1.8) with accurate wait-time calculation, API key scrubbing in thrown errors.
 - `validation.js` — pure input validators and format normalizers. No rate-limit logic (the canonical limiter lives in `client.js`). v0.1.7 adds `toFloatingDateTime()` — strips offset/Z from resolved datetime strings before they reach Morgen's task endpoints, which require JSCalendar floating local datetimes.
 - `tools-events-schema.js` — pure JSON Schema definitions for the six `EVENT_TOOLS` entries, zero runtime behavior.
 - `tools-events.js` — event handler implementations; composes the schema module, shape helpers, the calendar cache, the v0.1.3 smart account router, and (v0.1.6) the NL date and recurrence parsers.
