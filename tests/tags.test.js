@@ -152,6 +152,39 @@ describe("resolveTagLabelsToIds", () => {
     expect(await resolveTagLabelsToIds(["legacy"])).toEqual(["uuid-legacy"]);
   });
 
+  it("handles Morgen's live bare-array response shape (regression fix v0.1.9)", async () => {
+    // Verified live 2026-04-15: /v3/tags/list returns [...] at the top
+    // level, not { data: { tags: [...] } }. Earlier parser fell through
+    // to the [] fallback and silently dropped every tag, breaking every
+    // tagged create/update in the MCP.
+    installFetchMock({
+      "GET /v3/tags/list": [
+        { id: "uuid-urgent", name: "Urgent", color: "#FF0000" },
+        { id: "uuid-lorecraft", name: "Lorecraft", color: "#00FF00" },
+      ],
+    });
+    expect(await resolveTagLabelsToIds(["Urgent", "Lorecraft"])).toEqual([
+      "uuid-urgent",
+      "uuid-lorecraft",
+    ]);
+  });
+
+  it("handles top-level-id create response (Morgen's actual shape)", async () => {
+    // /v3/tags/create returns { id, name, color, position } with top-level id.
+    // resolveTagLabelsToIds already accepts this via the ?? createResponse?.id
+    // fallback, but lock in the behavior with a regression test.
+    installFetchMock({
+      "GET /v3/tags/list": [],
+      "POST /v3/tags/create": {
+        id: "uuid-new-top",
+        name: "fresh",
+        color: "#ABCDEF",
+        position: 1,
+      },
+    });
+    expect(await resolveTagLabelsToIds(["fresh"])).toEqual(["uuid-new-top"]);
+  });
+
   it("skips created tags that the server returns without an id", async () => {
     installFetchMock({
       "GET /v3/tags/list": { data: { tags: [] } },
