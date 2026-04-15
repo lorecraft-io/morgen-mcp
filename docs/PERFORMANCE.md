@@ -1,27 +1,28 @@
 # morgen-mcp Performance Notes
 
-Current as of v0.1.7 (2026-04-14). Reference: https://docs.morgen.so/rate-limits
+Current as of v0.1.8 (2026-04-15). Reference: https://docs.morgen.so/rate-limits
 
 ## Morgen Rate Limit Budget
 
-- **100 points per 15-minute rolling window** per API key
+- **300 points per 15-minute rolling window** per API key (raised from 100 on 2026-04-15 per direct confirmation from John Mavrick @ Morgen — "other users hitting limits quickly"). The constant lives in `src/client.js:3` since Morgen has no endpoint exposing the current budget.
 - `/list` endpoints cost **10 points** each
 - All other endpoints cost **1 point** each
 
-The client rejects requests with points > 100 upfront, preventing indefinite waits on misconfigured endpoints.
+The client rejects requests with points > 300 upfront, preventing indefinite waits on misconfigured endpoints.
 
 ## Steady-State Throughput
 
 | Workload                                         | Req / 15 min | Points | Headroom |
 |--------------------------------------------------|-------------:|-------:|---------:|
-| Pure list calls                                  |           10 |    100 |        0 |
-| Pure writes                                      |          100 |    100 |        0 |
-| Mixed (5 lists + 50 writes)                      |           55 |    100 |        0 |
-| Realistic (1 list + 90 writes)                   |           91 |    100 |        0 |
-| Heavy read (8 lists + 20 writes)                 |           28 |    100 |        0 |
-| Multi-account unfiltered list_events (4 accts)   |            1 |     40 |       60 |
+| Pure list calls                                  |           30 |    300 |        0 |
+| Pure writes                                      |          300 |    300 |        0 |
+| Mixed (5 lists + 250 writes)                     |          255 |    300 |        0 |
+| Realistic (1 list + 290 writes)                  |          291 |    300 |        0 |
+| Heavy read (8 lists + 220 writes)                |          228 |    300 |        0 |
+| Multi-account unfiltered list_events (4 accts)   |            1 |     40 |      260 |
+| n8n W2 (15-min poll: events/list + tasks/list)   |            2 |     20 |      280 |
 
-One list call consumes 10% of the window budget. A user running `list_events` every 30 seconds for 5 minutes would burn the entire budget in 10 calls. On Nathan's 4-account setup, a single unfiltered `list_events` fans out to one `/v3/events/list` call per account (see `src/tools-events.js:131-139`), costing 40 points — 40% of the budget in one tool call.
+One list call now consumes ~3.3% of the window budget (down from 10%). The n8n W2 polling workflow (~20 pts per 15-min tick) has 14× headroom, which means we can safely drop its cadence to 5-min polling (60 pts/15min) or add additional read calls without starving the budget. On Nathan's 4-account setup, a single unfiltered `list_events` still fans out to one `/v3/events/list` call per account (see `src/tools-events.js:131-139`), costing 40 points — now 13% of the budget instead of 40%.
 
 ## Client Rate Limiter
 
@@ -62,7 +63,7 @@ All handler call sites pass `points` explicitly to `morgenFetch`.
 
 **v0.1.4 `reflow_day` (client-side compression)** — fetches events once (10 pts) then issues one `POST /v3/events/update` per reflowable step. For Nathan's typical 4-5 focus blocks, that's 14-15 pts per apply call. Capped at **50 event_ids** (v0.1.5) to keep a pathological call under the 100-pt budget. On mid-loop failure, the tool throws a structured error with `applied_steps` / `pending_steps` so the caller can recover manually instead of re-running blind.
 
-**v0.1.5 `tags` label resolver** — every `create_task` / `update_task` / `event_to_task` call that passes tag labels fans out to `/v3/tags/list` (10 pts) plus `/v3/tags/create` per missing tag (1 pt each). Worst case with 10 brand-new labels on one task: 10 + 10 + 1 = **21 pts** in a single create. Document this cost to the caller when they chain many tagged creates — a bulk Notion → Morgen import of 20 tasks with 3 new tags each burns 20 × 13 = 260 pts, well over the 100-pt window. Callers should batch-precreate tags once, or parallelize across the window.
+**v0.1.5 `tags` label resolver** — every `create_task` / `update_task` / `event_to_task` call that passes tag labels fans out to `/v3/tags/list` (10 pts) plus `/v3/tags/create` per missing tag (1 pt each). Worst case with 10 brand-new labels on one task: 10 + 10 + 1 = **21 pts** in a single create. With the v0.1.8 rate-limit bump to 300 pts/15min, a bulk Notion → Morgen import of 20 tasks with 3 new tags each (260 pts) now fits in a single window with headroom. Callers importing 25+ tagged tasks in one window should still batch-precreate tags once to be safe.
 
 **v0.1.6 natural-language parsing** — pure client-side, zero additional rate-limit cost. `chrono-node` runs in-process, and `nl-recurrence.js` is a plain string-to-object transform. The only Morgen API calls in v0.1.6's NL path are the same ones that would have happened with raw ISO inputs.
 

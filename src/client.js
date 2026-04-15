@@ -1,6 +1,9 @@
 export const MORGEN_BASE = "https://api.morgen.so";
 
-const RATE_LIMIT_POINTS = 100;
+// Raised from 100 → 300 on 2026-04-15 per John Mavrick @ Morgen
+// ("other users hitting limits quickly"). The constant lives here because
+// Morgen has no public endpoint exposing the current budget.
+const RATE_LIMIT_POINTS = 300;
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 
 // Rolling window of { timestamp, points } entries
@@ -46,7 +49,7 @@ function enforceRateLimit(points) {
     const msUntilExpiry = msUntilFits(now, points);
     const secondsUntilExpiry = Math.max(1, Math.ceil(msUntilExpiry / 1000));
     throw new Error(
-      `Morgen rate limit reached (100 points per 15 minutes). Try again in ${secondsUntilExpiry} seconds.`
+      `Morgen rate limit reached (300 points per 15 minutes). Try again in ${secondsUntilExpiry} seconds.`
     );
   }
 
