@@ -334,7 +334,7 @@ export const TASK_TOOLS = [
 
 export const taskHandlers = {
   list_tasks: async () => {
-    const response = await morgenFetch("/v3/tasks/list", { points: 10 });
+    const response = await morgenFetch("/v3/tasks/list?limit=500", { points: 10 });
     return shapeTaskList(response);
   },
 
