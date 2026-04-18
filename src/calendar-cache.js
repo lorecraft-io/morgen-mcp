@@ -126,7 +126,7 @@ export function inferAccountFromContext({ title = "", description = "", particip
 
 // Map a logical account name to the calendar metadata entry Morgen uses.
 // Falls back to the cache's defaultId if the requested account can't be
-// found (which shouldn't happen in Nathan's setup but is safer than throwing).
+// found (which shouldn't happen in Nate's setup but is safer than throwing).
 const ACCOUNT_NAME_PATTERNS = {
   lorecraft: /(^|[^a-z0-9])(nate@lorecraft\.io|lorecraft)($|[^a-z0-9])/i,
   parzvl: /(^|[^a-z0-9])(nate@parzvl\.com|parzvl)($|[^a-z0-9])/i,
@@ -154,7 +154,7 @@ export async function resolveCalendarByAccountName(name) {
 // Resolve the caller's own email address, used when keying RSVP patches into
 // the Morgen participants map. Order of resolution:
 //   1. MORGEN_SELF_EMAIL env var (explicit override, always wins)
-//   2. The calendar meta's name if it looks like an email (most of Nathan's
+//   2. The calendar meta's name if it looks like an email (most of Nate's
 //      Google calendars are named after the account email)
 //   3. Throw with a clear hint to set the env var
 export function resolveSelfEmail(calendarMeta) {

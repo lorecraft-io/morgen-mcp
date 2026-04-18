@@ -67,6 +67,6 @@ Happy to review any preview/beta endpoints, answer questions about real-world sy
 
 Thanks for building Morgen — it's the best unified calendar+tasks tool I've found, and it's become load-bearing in my daily workflow.
 
-— Nathan
+— Nate
 nate@lorecraft.io
 github.com/lorecraft-io/morgen-mcp
