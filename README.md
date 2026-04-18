@@ -16,33 +16,26 @@
 
 ---
 
-## Table of Contents
+## Quick Navigation
 
-**Overview**
-- [Why Morgen (and this MCP)](#why-morgen-and-this-mcp)
-- [Natural-Language Native (no commands needed)](#natural-language-native-no-commands-needed)
-- [How It Works](#how-it-works)
-- [Why This Exists](#why-this-exists)
-
-**Features**
-- [Features](#features)
-- [Important Note About Tasks](#important-note-about-tasks)
-
-**Setup**
-- [Quick Install](#quick-install)
-- [Setup](#setup)
-- [Configuration Reference](#configuration-reference)
-- [Usage Examples](#usage-examples)
-
-**Reference**
-- [Rate Limits](#rate-limits)
-- [Security](#security)
-- [Development](#development)
-- [Under the Hood](#under-the-hood)
-
-**Meta**
-- [Acknowledgements](#acknowledgements)
-- [License](#license)
+| Link | Section | What it does | Time |
+|---|---|---|---|
+| [Why Morgen (and this MCP)](#why-morgen-and-this-mcp) | Overview | Why I moved from Motion to Morgen + why this MCP exists | ~2 min |
+| [Natural-Language Native](#natural-language-native-no-commands-needed) | Talk to it | Plain-English dates, recurrence, tasks — no commands | ~1 min |
+| [How It Works](#how-it-works) | Overview | How Claude dispatches Morgen tools under the hood | ~1 min |
+| [Why This Exists](#why-this-exists) | Context | The gap this MCP fills | ~2 min |
+| [Features](#features) | Reference | All tools exposed — calendar + task | ~2 min |
+| [Important Note About Tasks](#important-note-about-tasks) | Reference | Morgen task scheduling caveats | ~1 min |
+| [Quick Install](#quick-install) | Setup | One-liner to wire the MCP into Claude | ~1 min |
+| [Setup](#setup) | Setup | Getting a Morgen API key | ~2 min |
+| [Configuration Reference](#configuration-reference) | Setup | Env vars + options | ~3 min |
+| [Usage Examples](#usage-examples) | Reference | Natural-language flows | ~2 min |
+| [Rate Limits](#rate-limits) | Reference | 300pt/15min budget + tool costs | ~1 min |
+| [Security](#security) | Reference | Secret handling + disclosure | ~1 min |
+| [Development](#development) | Reference | Contributing + tests | ~2 min |
+| [Under the Hood](#under-the-hood) | Reference | JSCalendar, NL date parsing, architecture | ~2 min |
+| [Acknowledgements](#acknowledgements) | Meta | Credits | — |
+| [License](#license) | Meta | MIT | — |
 
 ---
 
