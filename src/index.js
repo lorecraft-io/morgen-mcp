@@ -18,7 +18,7 @@ config({ path: ENV_PATH });
 if (!process.env.MORGEN_API_KEY) {
   console.error(
     "Missing required environment variable: MORGEN_API_KEY\n" +
-    "Run \"npx morgen-mcp setup\" or see .env.example for details."
+    "Run \"npx fidgetcoding-morgen-mcp setup\" or see .env.example for details."
   );
   process.exit(1);
 }

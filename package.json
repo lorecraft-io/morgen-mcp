@@ -1,5 +1,5 @@
 {
-  "name": "morgen-mcp",
+  "name": "fidgetcoding-morgen-mcp",
   "version": "0.1.10",
   "description": "MCP server for Morgen — events, tasks, and calendar management for Claude Code via natural language",
   "type": "module",

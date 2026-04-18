@@ -23,10 +23,10 @@ This MCP server uses a Morgen API key stored in a local `.env` file with `chmod 
 
 1. Rotate your Morgen API key at https://platform.morgen.so/developers-api
 2. Update the `MORGEN_API_KEY` value in your local `.env` file
-3. Re-run the setup wizard: `npx morgen-mcp setup`
+3. Re-run the setup wizard: `npx fidgetcoding-morgen-mcp setup`
 
 ## Scope
 
 - Source code in this repository
-- Published npm package (`morgen-mcp`)
+- Published npm package (`fidgetcoding-morgen-mcp`)
 - GitHub Actions workflows

@@ -8,7 +8,7 @@
 
 **Natural-language task control for Morgen calendar in Claude Code.**
 
-[![npm version](https://img.shields.io/npm/v/morgen-mcp)](https://www.npmjs.com/package/morgen-mcp)
+[![npm version](https://img.shields.io/npm/v/fidgetcoding-morgen-mcp)](https://www.npmjs.com/package/fidgetcoding-morgen-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![MCP Compatible](https://img.shields.io/badge/MCP-compatible-green)](https://modelcontextprotocol.io)
 
@@ -213,7 +213,7 @@ The practical takeaway: if you want Claude to create, update, and close tasks pr
 One command. That is it.
 
 ```bash
-claude mcp add morgen --env MORGEN_API_KEY=your_key_here -- npx -y morgen-mcp
+claude mcp add morgen --env MORGEN_API_KEY=your_key_here -- npx -y fidgetcoding-morgen-mcp
 ```
 
 Then restart Claude Code and start talking to your calendar.
@@ -237,7 +237,7 @@ You have three options:
 **Option A — Run the setup command:**
 
 ```bash
-npx morgen-mcp setup
+npx fidgetcoding-morgen-mcp setup
 ```
 
 It will prompt you for your API key and timezone, then write a `.env` file for you.
@@ -256,7 +256,7 @@ MORGEN_TIMEZONE=America/New_York
   "mcpServers": {
     "morgen": {
       "command": "npx",
-      "args": ["-y", "morgen-mcp"],
+      "args": ["-y", "fidgetcoding-morgen-mcp"],
       "env": {
         "MORGEN_API_KEY": "your_morgen_api_key_here",
         "MORGEN_TIMEZONE": "America/New_York"
