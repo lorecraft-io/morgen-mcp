@@ -37,7 +37,7 @@ step()    { echo -e "\n${CYAN}${BOLD}── Step $1: $2 ──${NC}"; }
 ENV_DIR="$HOME/.morgen-mcp"
 ENV_FILE="$ENV_DIR/.env"
 MCP_NAME="morgen"
-NPX_CMD="npx -y morgen-mcp"
+NPX_CMD="npx -y fidgetcoding-morgen-mcp"
 
 # ── Banner ──────────────────────────────────────────────────
 echo ""

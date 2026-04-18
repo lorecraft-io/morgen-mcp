@@ -79,7 +79,7 @@ MORGEN_TIMEZONE=${timezone}
   console.log("  Next steps:");
   console.log("  1. Add the MCP server to your Claude config:");
   console.log("");
-  console.log("     claude mcp add morgen -- npx -y morgen-mcp");
+  console.log("     claude mcp add morgen -- npx -y fidgetcoding-morgen-mcp");
   console.log("");
   console.log("  2. Or run directly:");
   console.log("");
