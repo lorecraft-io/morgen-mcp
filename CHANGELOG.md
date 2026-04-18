@@ -1,0 +1,89 @@
+# Changelog
+
+All notable changes to `fidgetcoding-morgen-mcp` are documented here.
+
+Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+> **Note on package name:** This package was originally published as `morgen-mcp` on npm. Renamed to `fidgetcoding-morgen-mcp` on 2026-04-18 under the FidgetCoding brand umbrella. The old `morgen-mcp` package is deprecated with a redirect message. The GitHub repo name (`lorecraft-io/morgen-mcp`) is unchanged.
+
+## [0.1.10] - 2026-04-18
+
+### Changed
+- **npm package renamed to `fidgetcoding-morgen-mcp`** (was `morgen-mcp`). Install command updated across docs.
+- `src/index.js`: server version now read from `package.json` at startup so the MCP handshake can't drift from the shipped release.
+- README v2: Quick Navigation table, banner image, expanded "Why Morgen (and this MCP)" section with Motion → Morgen switch framing, loud "Natural-Language Native" admonition, John Mavrick + Morgen team Acknowledgements, `task-maxxing` "One more thing" end note.
+- README banner image link swapped from relative `./morgen-mcp.png` to absolute `raw.githubusercontent.com` URL so the banner renders on npmjs.com as well as GitHub.
+- Features table: `series_update_mode` enum corrected to `single` / `future` / `all` (was incorrectly documented as `this` / `following` / `all`). `delete_event` now documents its `series_update_mode` param.
+- All example prompts: `drew@example.com` → `person@example.com`.
+- Git history: `Co-Authored-By: claude-flow <ruv@ruv.net>` trailer stripped from all commits; `Nathan Davidovich` author fields rewritten to `Nate Davidovich`.
+
+### Removed
+- `docs/FEATURE-REQUEST-2026-04-15.md` — was an internal Canny-post draft that inadvertently referenced private Morgen roadmap information; removed from the public repo.
+
+### Added
+- `bugs.url` in `package.json`.
+- `CHANGELOG.md` (this file, backfilled).
+
+## [0.1.9] - 2026-04-15
+
+### Fixed
+- `/v3/tags/list` bare-array response handler (silent tag breakage when Morgen returned an unwrapped array).
+
+## [0.1.8] - 2026-04-15
+
+### Changed
+- Rate limit documentation updated: `100 pts / 15-min window` → `300 pts / 15-min window` (Morgen raised the limit 2026-04-15).
+- Tag-list deprecation docs updated to reflect upcoming Morgen app behavior (tag-first organization).
+
+## [0.1.7] - 2026-04-14
+
+### Fixed
+- Task `due` field now uses JSCalendar floating local datetime via `toFloatingDateTime` in `validation.js`. Fixes HTTP 400 on `create_task` / `update_task` with due dates. 339/339 tests passing.
+
+## [0.1.6] - 2026-04-14
+
+### Added
+- Natural-language date parser (`src/nl-date-parser.js`, chrono-node-backed, DST-safe). Every date/time input now accepts plain English — `"tomorrow at 3pm"`, `"next friday"`, `"in 2 hours"`, etc.
+- Natural-language recurrence helper (`src/nl-recurrence.js`, JSCalendar RFC 8984). Handles `"daily"`, `"weekly"`, `"every tuesday and thursday"`, `"first monday of every month"`, `"weekdays"`, and more.
+- Structured error metadata: `err.reflow` + `err.conversion` attach `applied_steps` / `pending_steps` so callers can recover from mid-loop failures.
+
+### Fixed
+- `reflow_day` auto-mode regression.
+
+## [0.1.5] - 2026-04-14
+
+### Added
+- `event_to_task` soft-conversion tool (bundles `create_task` + `delete_event`).
+- Tags restored: array-of-labels input resolved to Morgen tag UUIDs via `/v3/tags/list` + `/v3/tags/create` (auto-creates missing tags, case-insensitive match).
+
+### Fixed
+- `reflow_day` hardening: solo-block filter, `event_ids` cap at 50, partial-failure recovery metadata.
+
+## [0.1.4] - 2026-04-14
+
+### Added
+- `reflow_day` tool: compress a day's events back-to-back starting from an anchor time, with `dry_run` default and solo-block auto-detection.
+
+### Fixed
+- `create_task` / `update_task` response shape: Morgen's API only echoes the task ID, so the tool now synthesizes a return object from the request body + returned ID for immediate use.
+- Tags input temporarily removed (HTTP 400 on string-array shape); restored in 0.1.5.
+
+## [0.1.3] - 2026-04-14
+
+### Changed
+- `rsvp_event` rewritten to PATCH the caller's participant entry directly (Morgen has no dedicated RSVP endpoint).
+- Smart account routing: `create_event` auto-routes to PARZVL / BLOOM / Lorecraft based on title + description + participant email heuristics.
+- Richer event shape: `privacy`, `free_busy_status`, `virtual_room`, `color_id`, `alerts` now supported.
+
+## [0.1.2] - 2026-04-14
+
+### Changed
+- Full word-for-word audit cleanup: file splitting to respect 500-line-per-file rule, tighter bounded contexts (`client.js`, `tools-events.js`, `tools-events-schema.js`, `events-shape.js`, `calendar-cache.js`, `tools-tasks.js`, `validation.js`).
+
+## [0.1.1] - 2026-04-13
+
+### Added
+- Initial public release as `morgen-mcp`.
+- 13 tools: `list_calendars`, `list_events`, `create_event`, `update_event`, `delete_event`, `rsvp_event`, `list_tasks`, `create_task`, `update_task`, `move_task`, `close_task`, `reopen_task`, `delete_task`.
+- Point-based rate limiter: 10 pts per list endpoint, 1 pt per write; `/v3/tags/list` lookup costs 10 pts per tagged call + 1 pt per auto-created tag.
+- Single-credential auth: one Morgen API key via `Authorization: ApiKey ...` header. No OAuth, no refresh tokens, no Firebase.
