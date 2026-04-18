@@ -20,7 +20,7 @@
 
 **Overview**
 - [Why Morgen (and this MCP)](#why-morgen-and-this-mcp)
-- [Natural-Language Hero](#natural-language-hero)
+- [Natural-Language Native (no commands needed)](#natural-language-native-no-commands-needed)
 - [How It Works](#how-it-works)
 - [Why This Exists](#why-this-exists)
 
@@ -60,7 +60,7 @@ If you're on Motion and not looking to switch, I also maintain [motion-calendar-
 
 <p align="right"><a href="#top">↑ back to top</a></p>
 
-## Natural-Language Hero
+## Natural-Language Native (no commands needed)
 
 > [!IMPORTANT]
 > **🗣️ You talk. Claude dispatches. No commands, no syntax, no JSON.**
