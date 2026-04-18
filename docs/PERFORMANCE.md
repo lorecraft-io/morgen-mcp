@@ -22,7 +22,7 @@ The client rejects requests with points > 300 upfront, preventing indefinite wai
 | Multi-account unfiltered list_events (4 accts)   |            1 |     40 |      260 |
 | n8n W2 (15-min poll: events/list + tasks/list)   |            2 |     20 |      280 |
 
-One list call now consumes ~3.3% of the window budget (down from 10%). The n8n W2 polling workflow (~20 pts per 15-min tick) has 14× headroom, which means we can safely drop its cadence to 5-min polling (60 pts/15min) or add additional read calls without starving the budget. On Nathan's 4-account setup, a single unfiltered `list_events` still fans out to one `/v3/events/list` call per account (see `src/tools-events.js:131-139`), costing 40 points — now 13% of the budget instead of 40%.
+One list call now consumes ~3.3% of the window budget (down from 10%). The n8n W2 polling workflow (~20 pts per 15-min tick) has 14× headroom, which means we can safely drop its cadence to 5-min polling (60 pts/15min) or add additional read calls without starving the budget. On Nate's 4-account setup, a single unfiltered `list_events` still fans out to one `/v3/events/list` call per account (see `src/tools-events.js:131-139`), costing 40 points — now 13% of the budget instead of 40%.
 
 ## Client Rate Limiter
 
@@ -61,7 +61,7 @@ All handler call sites pass `points` explicitly to `morgenFetch`.
 
 ## Post-v0.1.2 cost patterns
 
-**v0.1.4 `reflow_day` (client-side compression)** — fetches events once (10 pts) then issues one `POST /v3/events/update` per reflowable step. For Nathan's typical 4-5 focus blocks, that's 14-15 pts per apply call. Capped at **50 event_ids** (v0.1.5) to keep a pathological call under the 100-pt budget. On mid-loop failure, the tool throws a structured error with `applied_steps` / `pending_steps` so the caller can recover manually instead of re-running blind.
+**v0.1.4 `reflow_day` (client-side compression)** — fetches events once (10 pts) then issues one `POST /v3/events/update` per reflowable step. For Nate's typical 4-5 focus blocks, that's 14-15 pts per apply call. Capped at **50 event_ids** (v0.1.5) to keep a pathological call under the 100-pt budget. On mid-loop failure, the tool throws a structured error with `applied_steps` / `pending_steps` so the caller can recover manually instead of re-running blind.
 
 **v0.1.5 `tags` label resolver** — every `create_task` / `update_task` / `event_to_task` call that passes tag labels fans out to `/v3/tags/list` (10 pts) plus `/v3/tags/create` per missing tag (1 pt each). Worst case with 10 brand-new labels on one task: 10 + 10 + 1 = **21 pts** in a single create. With the v0.1.8 rate-limit bump to 300 pts/15min, a bulk Notion → Morgen import of 20 tasks with 3 new tags each (260 pts) now fits in a single window with headroom. Callers importing 25+ tagged tasks in one window should still batch-precreate tags once to be safe.
 
@@ -81,5 +81,5 @@ All handler call sites pass `points` explicitly to `morgenFetch`.
 - Optionally cache `list_events` / `list_tasks` responses for 30 seconds to survive bursty AI workflows.
 - Pin cache TTL to an env var (e.g. `MORGEN_CACHE_TTL_MS`) for per-deployment tuning of the 10-minute default.
 - **Parallelize `resolveTagLabelsToIds` tag-create calls** via `Promise.all` — currently serial, so 10 new tags = 10 sequential round-trips (~30s real-time latency). The 1-pt-per-call cost is unchanged, but wall-clock time improves dramatically.
-- **Align `tools-tasks.js` TZ default** with events — currently passes `args.timezone` to the NL parser, which falls back to hardcoded `"America/New_York"` instead of `DEFAULT_TIMEZONE` / `MORGEN_TIMEZONE` env. Fine on Nathan's EST setup, wrong for other timezones.
+- **Align `tools-tasks.js` TZ default** with events — currently passes `args.timezone` to the NL parser, which falls back to hardcoded `"America/New_York"` instead of `DEFAULT_TIMEZONE` / `MORGEN_TIMEZONE` env. Fine on Nate's EST setup, wrong for other timezones.
 - **Atomic server-side reflow** — waiting on Morgen to expose `POST /v3/calendars/reflow` per the 2026-04-14 feature request email. Would replace the sequential client-side loop and eliminate partial-failure state entirely.

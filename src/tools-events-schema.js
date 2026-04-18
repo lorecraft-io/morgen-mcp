@@ -243,7 +243,7 @@ export const EVENT_TOOLS = [
   {
     name: "rsvp_event",
     description:
-      "Respond to an event invitation (accept, decline, or tentative). Implemented as a PATCH to /v3/events/update that updates your own participant entry's participationStatus — Morgen has no dedicated RSVP endpoint. Your own email is resolved from MORGEN_SELF_EMAIL env var, or derived from the target calendar's name (most of Nathan's Google calendars are named after the email). Override with the self_email argument if neither works.",
+      "Respond to an event invitation (accept, decline, or tentative). Implemented as a PATCH to /v3/events/update that updates your own participant entry's participationStatus — Morgen has no dedicated RSVP endpoint. Your own email is resolved from MORGEN_SELF_EMAIL env var, or derived from the target calendar's name (most of Nate's Google calendars are named after the email). Override with the self_email argument if neither works.",
     inputSchema: {
       type: "object",
       properties: {
