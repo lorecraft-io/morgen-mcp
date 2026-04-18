@@ -8,11 +8,15 @@ import {
 import { config } from "dotenv";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
+import { readFileSync } from "fs";
 
 // Load .env from repo root
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ENV_PATH = process.env.DOTENV_CONFIG_PATH || resolve(__dirname, "../.env");
 config({ path: ENV_PATH });
+
+// Read version from package.json so it never drifts from the published release
+const PKG = JSON.parse(readFileSync(resolve(__dirname, "../package.json"), "utf8"));
 
 // Startup validation
 if (!process.env.MORGEN_API_KEY) {
@@ -44,7 +48,7 @@ const HANDLERS = {
 
 // Server setup
 const server = new Server(
-  { name: "morgen", version: "0.1.7" },
+  { name: "morgen", version: PKG.version },
   { capabilities: { tools: {} } }
 );
 
