@@ -6,7 +6,7 @@
 
 ![Morgen MCP](./morgen-mcp.png)
 
-**Natural-language task control for Morgen calendar in Claude Code.**
+**Natural-language calendar and task control for Morgen in Claude Code.**
 
 [![npm version](https://img.shields.io/npm/v/fidgetcoding-morgen-mcp)](https://www.npmjs.com/package/fidgetcoding-morgen-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
@@ -32,10 +32,12 @@
 | [Usage Examples](#usage-examples) | Reference | Natural-language flows | ~2 min |
 | [Rate Limits](#rate-limits) | Reference | 300pt/15min budget + tool costs | ~1 min |
 | [Security](#security) | Reference | Secret handling + disclosure | ~1 min |
+| [Troubleshooting](#troubleshooting) | Reference | Auth errors, rate limits, tag resolver, stale keys | ~2 min |
 | [Development](#development) | Reference | Contributing + tests | ~2 min |
 | [Under the Hood](#under-the-hood) | Reference | JSCalendar, NL date parsing, architecture | ~2 min |
 | [Acknowledgements](#acknowledgements) | Meta | Credits | — |
 | [One more thing](#one-more-thing) | Meta | `task-maxxing` — DIY three-way task sync (Obsidian ↔ Notion ↔ Morgen) | ~1 min |
+| [Project Status](#project-status) | Meta | Actively maintained — this is the live MCP | ~1 min |
 | [License](#license) | Meta | MIT | — |
 
 ---
@@ -50,7 +52,7 @@ I (Nate) was on Motion before I switched. Three reasons the move stuck:
 - **Better product.** Morgen unifies calendars and tasks in one auto-scheduling surface, and the UI is cleaner. The auto-scheduler is genuinely opinionated in the right places.
 - **Better API.** The Morgen public API is well-designed enough to actually wrap — one API key, no browser-storage refresh tokens, no Firebase. That's why this MCP exists and feels thin.
 
-If you're on Motion and not looking to switch, I also maintain [motion-calendar-mcp](https://github.com/lorecraft-io/motion-calendar-mcp). But the honest pitch: try Morgen.
+If you're on Motion, I also keep [motion-mcp](https://github.com/lorecraft-io/motion-mcp) up — low-maintenance but still functional. But the honest pitch: try Morgen.
 
 <p align="right"><a href="#top">↑ back to top</a></p>
 
@@ -338,6 +340,22 @@ Your Morgen API key grants full access to your Morgen account — all calendars,
 
 <p align="right"><a href="#top">↑ back to top</a></p>
 
+## Troubleshooting
+
+**"Authentication failed" or `401 Unauthorized`.**
+Your `MORGEN_API_KEY` is missing, mistyped, or has been rotated out. Pull a fresh key from the Morgen developer portal (Settings → API) and re-export it into your environment — watch for stray whitespace on copy-paste. Restart Claude Code after updating `.env`.
+
+**Rate-limit errors (`429` or "point budget exceeded").**
+Morgen enforces 300 points per rolling 15-minute window. List calls cost 10 pts each, writes cost 1 pt. Tight polling loops on `list_events` / `list_tasks` are the usual culprit — the `calendar-cache.js` layer already amortizes the hot path, but if you're hitting the ceiling, back off for a minute and the window resets.
+
+**Tags silently dropped on `create_task` / `update_task`.**
+Morgen's tag API takes UUIDs, not labels. The built-in resolver in `tags.js` auto-creates any missing label, but if you hit this it's usually because the label string didn't reach the tool — double-check the request body and confirm Claude passed `tags: ["label1", "label2"]` as an array of strings, not a comma-joined single string.
+
+**"Invalid API key" immediately after a successful call.**
+Morgen keys don't expire on a fixed clock, but they do invalidate if the key is revoked in the portal or if the account is downgraded. Regenerate the key, update `.env`, and restart the MCP server. If you're seeing this mid-session with no portal changes, open an issue — it's worth surfacing.
+
+<p align="right"><a href="#top">↑ back to top</a></p>
+
 ## Development
 
 ```bash
@@ -381,6 +399,14 @@ If morgen-mcp tames your calendar, the next thing you probably want to tame is y
 It genuinely helped my ADHD. Having a single reliable home for every loose end — and knowing nothing falls through the cracks between three apps — was a real quality-of-life unlock. If that pattern might help yours too, the repo is open-source and the setup is documented step by step.
 
 → [github.com/lorecraft-io/task-maxxing](https://github.com/lorecraft-io/task-maxxing)
+
+<p align="right"><a href="#top">↑ back to top</a></p>
+
+## Project Status
+
+> **Actively maintained.** This is the MCP I use every day and the one I'm building on. If Morgen's API surface grows, this repo grows with it. Bug reports get real attention, features get shipped, and the roadmap tracks what Morgen themselves are working on.
+
+The counterpart repo is **[motion-mcp](https://github.com/lorecraft-io/motion-mcp)** — same philosophy, different calendar. It's in low-maintenance mode now that I've moved to Morgen, but it still works for anyone who's on Motion and wants agentic calendar access. If you're evaluating both, this repo is the one getting active care.
 
 <p align="right"><a href="#top">↑ back to top</a></p>
 

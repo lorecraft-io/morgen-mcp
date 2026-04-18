@@ -107,7 +107,7 @@ No circular imports. `index.js` depends on the two `tools-*` modules. `tools-eve
 - `nl-recurrence.js` — (NEW v0.1.6) natural-language → Morgen `RecurrenceRule` array helper. Handles "every monday", "weekdays", "first friday of every month", "biweekly", etc. Pass-through for existing array input. Wired into `create_event` + `update_event`.
 - `bin/setup.js` — interactive first-run script that writes `MORGEN_API_KEY` into a local `.env` file.
 
-## Consistency with motion-calendar-mcp
+## Consistency with motion-mcp
 
 - **Intentional divergence — split files:** Motion ships one monolithic `src/index.js`. morgen-mcp splits into `index.js` / `client.js` / `tools-events.js` / `tools-events-schema.js` / `events-shape.js` / `calendar-cache.js` / `tools-tasks.js` / `validation.js` to respect the 500-line-per-file project rule and maintain clear bounded contexts.
 - **Intentional divergence — simpler auth:** Motion uses OAuth via extracted Firebase refresh tokens. Morgen uses a single `Authorization: ApiKey <key>` header, so there is no token refresh cycle in `client.js`.
