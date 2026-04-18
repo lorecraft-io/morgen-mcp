@@ -6,7 +6,7 @@
 
 ![Morgen MCP](./morgen-mcp.png)
 
-**Natural-language calendar and task control for Morgen in Claude Code.**
+**Natural-language task control for Morgen calendar in Claude Code.**
 
 [![npm version](https://img.shields.io/npm/v/morgen-mcp)](https://www.npmjs.com/package/morgen-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
