@@ -23,6 +23,10 @@ jobs:
         with:
           node-version: 20
           registry-url: 'https://registry.npmjs.org'
+      - name: Upgrade npm to 11+ (required for OIDC trusted-publisher auth)
+        run: |
+          npm install -g npm@latest
+          npm --version
       - run: npm ci
       - run: npm test
         if: hashFiles('test/**', 'tests/**', 'src/**/*.test.*') != ''
