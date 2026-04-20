@@ -419,3 +419,5 @@ MIT — see [LICENSE](LICENSE) for details.
 ---
 
 Built by [Nate Davidovich / Lorecraft](https://github.com/lorecraft-io)
+
+[⤴ back to top](#top)
