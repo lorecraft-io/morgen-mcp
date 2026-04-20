@@ -1,6 +1,6 @@
 {
   "name": "fidgetcoding-morgen-mcp",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "MCP server for Morgen \u2014 events, tasks, and calendar management for Claude Code via natural language",
   "type": "module",
   "main": "src/index.js",
@@ -17,7 +17,8 @@
   "scripts": {
     "start": "node src/index.js",
     "setup": "node bin/setup.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepublishOnly": "npm test"
   },
   "engines": {
     "node": ">=20"
@@ -46,7 +47,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",
     "chrono-node": "^2.9.0",
-    "dotenv": "17.4.0"
+    "dotenv": "17.4.2"
   },
   "devDependencies": {
     "vitest": "4.1.2"
