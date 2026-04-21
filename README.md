@@ -4,7 +4,7 @@
 
 # Morgen MCP
 
-![Morgen MCP](https://raw.githubusercontent.com/lorecraft-io/morgen-mcp/main/morgen-mcp.png)
+![Morgen MCP](https://raw.githubusercontent.com/lorecraft-io/morgen-mcp/main/morgenmcp.png)
 
 **Natural-language calendar and task control for Morgen in Claude Code.**
 

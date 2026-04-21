@@ -6,7 +6,45 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versio
 
 > **Note on package name:** This package was originally published as `morgen-mcp` on npm. Renamed to `fidgetcoding-morgen-mcp` on 2026-04-18 under the FidgetCoding brand umbrella. The old `morgen-mcp` package is deprecated with a redirect message. The GitHub repo name (`lorecraft-io/morgen-mcp`) is unchanged.
 
-## [0.1.10] - 2026-04-18
+## [Unreleased]
+
+### Changed
+- README: banner filename switched from `morgen-mcp.png` to `morgenmcp.png` to match the sibling-repo brand-kit convention (`motionmcp.png`, `taskmaxxing.png`, etc.). The old asset is kept in-tree for now; the README now points at `morgenmcp.png` via the absolute `raw.githubusercontent.com` URL so it still renders on npmjs.com.
+- README: added a "back to top" anchor button at section boundaries (dd6a607).
+
+## [0.1.14] - 2026-04-20
+
+### Changed
+- Release cut to retest OIDC trusted-publisher auth with a regenerated `package-lock.json` that includes all platform-specific optional deps (`@rolldown/binding-*`). No source changes — validation of the npm 11+ / OIDC publish chain end-to-end.
+
+### Fixed
+- `package-lock.json` regenerated with npm 11+ so the lockfile carries every `@rolldown/binding-*` platform entry needed by vitest 4.x under the OIDC publish environment (5fd1976).
+
+## [0.1.13] - 2026-04-20
+
+### Changed
+- Release cut to smoke-test OIDC provenance after bumping the publish workflow's npm version.
+
+### Fixed
+- Publish workflow now upgrades npm to `11+` before running `npm publish --provenance`. npm's trusted-publisher OIDC auth requires npm 11.5+, which the default GitHub Actions runner did not ship (1f1b181).
+
+## [0.1.12] - 2026-04-20
+
+### Added
+- OIDC publish workflow (`.github/workflows/publish.yml`): GitHub Actions now publishes to npm via `--provenance` using npm's trusted-publisher OIDC flow — no long-lived `NPM_TOKEN` stored in the repo or its secrets (51fd121).
+
+### Changed
+- Release cut as the first smoke test of the provenance-signed publish path; package bytes identical to 0.1.11 on the source side.
+
+## [0.1.11] - 2026-04-20
+
+### Changed
+- `dotenv` bumped to `17.4.2` — picks up the upstream security + deprecation fixes and aligns the morgen-mcp / motion-mcp / task-maxxing trio on one dotenv major (548f4ba).
+- `prepublishOnly` gate wired into `package.json`: `npm publish` now refuses to run if `npm test` fails, closing a shipping-without-tests window that existed in 0.1.10.
+- CI action pins rolled to `@v6` across the workflow set (checkout, setup-node, upload-artifact) to stay on supported majors.
+
+### Fixed
+- CI: vitest 4.x CI failures under npm-cli#4828 resolved by declaring explicit cross-platform `@rolldown/binding-*` entries as `optionalDependencies` so the Linux + macOS runners install the native binding they actually need (12eed66).
 
 ### Changed
 - **npm package renamed to `fidgetcoding-morgen-mcp`** (was `morgen-mcp`). Install command updated across docs.
