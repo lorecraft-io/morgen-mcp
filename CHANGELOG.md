@@ -8,9 +8,13 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versio
 
 ## [Unreleased]
 
+### Added
+- README: social-links badge strip (X · LinkedIn · YouTube · Instagram, ruvnet-style for-the-badge) inserted into the centered header block beneath the project metadata badges.
+
 ### Changed
 - README: banner filename switched from `morgen-mcp.png` to `morgenmcp.png` to match the sibling-repo brand-kit convention (`motionmcp.png`, `taskmaxxing.png`, etc.). The old asset is kept in-tree for now; the README now points at `morgenmcp.png` via the absolute `raw.githubusercontent.com` URL so it still renders on npmjs.com.
 - README: added a "back to top" anchor button at section boundaries (dd6a607).
+- Git history rewrite: `git filter-repo` collapsed all author/committer identities (dependabot[bot], lorecraft-io, fidgetcoding, nate variants) into a single `Nate Davidovich <nate@lorecraft.io>` identity across `main` and all release tags. All `Co-authored-by:` trailers stripped. Tag commit hashes for v0.1.10 / v0.1.12 / v0.1.13 / v0.1.14 changed; npm tarballs unaffected (already published from old hashes).
 
 ## [0.1.14] - 2026-04-20
 
