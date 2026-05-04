@@ -38,7 +38,7 @@
 | [Development](#development) | Reference | Contributing + tests | ~2 min |
 | [Under the Hood](#under-the-hood) | Reference | JSCalendar, NL date parsing, architecture | ~2 min |
 | [Acknowledgements](#acknowledgements) | Meta | Credits | — |
-| [One more thing](#one-more-thing) | Meta | `task-maxxing` — DIY three-way task sync (Obsidian ↔ Notion ↔ Morgen) | ~1 min |
+| [One more thing](#one-more-thing) | Meta | `task-maxxing` — DIY two-way task sync (Obsidian ↔ Morgen, Notion dropped 2026-05-04) | ~1 min |
 | [Project Status](#project-status) | Meta | Actively maintained — this is the live MCP | ~1 min |
 | [License](#license) | Meta | MIT | — |
 
@@ -396,7 +396,7 @@ Morgen has cleared that bar from day one. The public API is documented like they
 
 ## One more thing
 
-If morgen-mcp tames your calendar, the next thing you probably want to tame is your tasks. I built [**task-maxxing**](https://github.com/lorecraft-io/task-maxxing) for exactly that — a public, DIY, three-way sync between Obsidian Tasks, Notion, and Morgen, orchestrated via n8n. One source of truth for every task-shaped thought, regardless of where you wrote it down. Create it in Obsidian, complete it in Morgen, see the same state in Notion.
+If morgen-mcp tames your calendar, the next thing you probably want to tame is your tasks. I built [**task-maxxing**](https://github.com/lorecraft-io/task-maxxing) for exactly that — a public, DIY, two-way sync between Obsidian Tasks and Morgen, orchestrated via n8n (Notion was dropped 2026-05-04). One source of truth for every task-shaped thought. Create it in Obsidian, complete it in Morgen, both stay in sync.
 
 It genuinely helped my ADHD. Having a single reliable home for every loose end — and knowing nothing falls through the cracks between three apps — was a real quality-of-life unlock. If that pattern might help yours too, the repo is open-source and the setup is documented step by step.
 
